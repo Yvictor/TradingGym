@@ -14,16 +14,34 @@ python steup.py install
 ### Getting Started
 ``` python
 import random
+import numpy as np
+import pandas as pd
 import trading_env
 
-env = trading_env(obs_data_len=256, step_len=128,
-                  df=df, fee=1, max_position=5, deal_col_name='price', 
-                  feature_names=['price', 'volume'], fluc_div=100.0)
+df = pd.read_hdf('dataset/SGXTW.h5', 'STW')
+
+env = trading_env.make(obs_data_len=256, step_len=128,
+                      df=df, fee=0.1, max_position=5, deal_col_name='Price', 
+                      feature_names=['Price', 'Volume', 
+                                     'Ask_price','Bid_price', 
+                                     'Ask_deal_vol','Bid_deal_vol',
+                                     'Bid/Ask_deal', 'Updown'], 
+                      fluc_div=100.0)
 
 env.reset()
 env.render()
 
 state, reward, done, info = env.step(random.randrange(3))
+
+### randow choice action and show the transaction detail
+for i in range(500):
+    print(i)
+    state, reward, done, info = env.step(random.randrange(3))
+    print(state, reward)
+    env.render()
+    if done:
+        break
+env.transaction_details
 ```
 - obs_data_len: observation data length
 - step_len: when call step rolling windows will + step_len
@@ -43,3 +61,5 @@ state, reward, done, info = env.step(random.randrange(3))
 - max_position: the max market position for you trading share.
 - deal_col_name: the column name for cucalate reward used.
 - feature_names: list contain the feature columns to use in trading status.
+
+
