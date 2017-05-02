@@ -9,7 +9,8 @@ import matplotlib.patches as patches
 class trading_env:
     def __init__(self, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
-                 feature_names=['price', 'volume'], fluc_div=100.0):
+                 feature_names=['price', 'volume'], 
+                 fluc_div=100.0, gameover_limit=5):
         #assert df 
         # need deal price as essential and specified the df format
         # obs_data_leng -> observation data length
@@ -43,6 +44,7 @@ class trading_env:
         self.max_position = max_position
         
         self.fluc_div = fluc_div
+        self.gameover = gameover_limit
         
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
@@ -80,6 +82,7 @@ class trading_env:
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
         return self.obs_res
+    
     
     def step(self, action):
         #price_current can be change next one to some avg of next_N or simulate with slippage
@@ -265,7 +268,7 @@ class trading_env:
 
                 
                 
-        elif self.reward_sum+self.reward_fluctuant < -5:#3.5:
+        elif self.gameover and self.reward_sum+self.reward_fluctuant < -self.gameover:#3.5:
             done = True
             if self.posi_l[-1] < 0:
                 self.make_real = 1
@@ -431,5 +434,27 @@ class trading_env:
             plt.pause(0.3)
     
     
+    def backtest(self):
+        self.gameover = None
+        self.df_sample = self.df
+        self.step_st = 0
+        self.price = self.df_sample[self.price_name].as_matrix()
+        self.obs_features = self.df_sample[self.using_feature].as_matrix()
+        self.obs_res = self.obs_features[self.step_st: self.step_st+self.obs_len]
+        
+        #maybe make market position feature in final feature, set as option
+        self.posi_l = [0]*self.obs_len
+        # self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
+        
+        self.reward_sum = 0
+        self.reward_fluctuant = 0
+        self.reward_ret = 0
+        self.transaction_details = pd.DataFrame()
+        self.reward_curve = []
+        self.t_index = 0
+        
+        self.buy_color, self.sell_color = (1, 2)
+        self.new_rotation, self.cover_rotation = (1, 2)
+        return self.obs_res
     
     
