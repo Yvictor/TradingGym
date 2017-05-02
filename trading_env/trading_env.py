@@ -44,6 +44,9 @@ class trading_env:
         
         self.fluc_div = fluc_div
         
+        self.begin_fs = self.df[self.df['serial_number']==0]
+        self.date_leng = len(self.begin_fs)
+        
         self.render_on = 0
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
@@ -51,9 +54,12 @@ class trading_env:
         self.logger.info('Making new env: Trading_Simulater-v0')
         
     def reset(self):
-        begin_fs = self.df[self.df['serial_number']==0]
-        random_int = np.random.randint(len(begin_fs))
-        begin_point, end_point = begin_fs.index[random_int: random_int+2]
+        random_int = np.random.randint(self.date_leng)
+        if random_int == self.date_leng - 1:
+            begin_point = self.begin_fs.index[random_int]
+            end_point = None
+        else:
+            begin_point, end_point = self.begin_fs.index[random_int: random_int+2]
         self.df_sample = self.df.iloc[begin_point: end_point]
         self.step_st = 0
         self.price = self.df_sample[self.price_name].as_matrix()
