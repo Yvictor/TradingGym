@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import logging
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -323,4 +324,106 @@ class trading_env:
         #self.obs_res = np.concatenate((self.obs_pv.reshape(self.obs_len*self.feature_len),self.position))#.astype(float)
         info = None
         return self.obs_res, self.reward_ret, done, info
+    
+    def render(self, save=False):
+        if self.render_on == 0:
+            matplotlib.style.use('dark_background')
+            self.render_on = 1
+
+            left, width = 0.1, 0.8
+            rect1 = [left, 0.4, width, 0.55]
+            rect2 = [left, 0.2, width, 0.2]
+            rect3 = [left, 0.05, width, 0.15]
+
+            self.fig = plt.figure(figsize=(15,8))
+            self.fig.suptitle('%s'%self.df_sample['datetime'].iloc[0].date(), fontsize=14, fontweight='bold')
+            #self.ax = self.fig.add_subplot(1,1,1)
+            self.ax = self.fig.add_axes(rect1)  # left, bottom, width, height
+            self.ax2 = self.fig.add_axes(rect2, sharex=self.ax)
+            self.ax3 = self.fig.add_axes(rect3, sharex=self.ax)
+            #fig, ax = plt.subplots()
+            price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
+            self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
+            self.vol_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
+            rect_high = self.price[self.step_st:self.step_st+self.obs_len].max() - self.price[self.step_st:self.step_st+self.obs_len].min()
+            self.target_box = self.ax.add_patch(
+                              patches.Rectangle(
+                              (self.step_st, self.price[self.step_st:self.step_st+self.obs_len].min()),self.obs_len,rect_high,
+                              label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.8),linestyle=':',linewidth=2,
+                              fill=True)
+                              )     # remove background)
+            self.fluc_reward_plot = self.ax2.fill_between([x[0] for x in self.reward_curve],0,[y[1] for y in self.reward_curve],facecolor='yellow',alpha=0.8)
+            if len(self.transaction_details)!=0:
+                self.reward_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.reward_sum,facecolor='cyan', alpha=0.5)
+                self.share_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.position,facecolor='r', alpha=0.5)
+                buy_record = self.transaction_details[self.transaction_details['transact']=='Buy']
+                if len(buy_record)!=0:
+                    trade_x = buy_record.step
+                    trade_y = [self.price[i] for i in trade_x]
+                    trade_color = [(1,0,0) if i =='new' else (1,0.7,0.7) for i in buy_record.transact_type]
+                #trade_marker = ['v' if i =='Sell' else '^' for i in self.transaction_details.transact]
+                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='^',c=trade_color,edgecolors='none', zorder=2)
+                sell_record = self.transaction_details[self.transaction_details['transact']=='Sell']
+                if len(sell_record)!=0:
+                    trade_x = sell_record.step
+                    trade_y = [self.price[i] for i in trade_x]
+                    trade_color = [(0,1,0) if i =='new' else (0.7,1,0.7) for i in sell_record.transact_type]
+                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='v',c=trade_color,edgecolors='none',zorder=2)
+
+            self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
+            plt.ion()
+            #self.fig.tight_layout()
+            plt.show()
+            if save:
+                self.fig.savefig('fig/%s.png' % str(self.t_index))
+        elif self.render_on == 1:
+            self.ax.lines.remove(self.price_plot[0])
+            self.ax3.lines.remove(self.vol_plot[0])
+            price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
+            self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
+            self.vol_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
+            self.fluc_reward_plot.remove()
+            self.target_box.remove()
+            try:
+                self.reward_plot.remove()
+                self.share_plot.remove()
+            except:
+                pass
+            self.fluc_reward_plot = self.ax2.fill_between([x[0] for x in self.reward_curve],0,[y[1] for y in self.reward_curve],facecolor='yellow',alpha=0.8)
+            rect_high = self.price[self.step_st:self.step_st+self.obs_len].max() - self.price[self.step_st:self.step_st+self.obs_len].min()
+            self.target_box = self.ax.add_patch(
+                              patches.Rectangle(
+                              (self.step_st, self.price[self.step_st:self.step_st+self.obs_len].min()),self.obs_len,rect_high,
+                              label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.75),linestyle=':',linewidth=2,
+                              fill=True)
+                              )              
+
+            if len(self.transaction_details)!=0:
+                try:
+                    self.trade_plot.remove()
+                except:
+                    pass
+                self.reward_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.reward_sum,edgecolors='cyan',facecolor='cyan')
+                self.share_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.position,facecolor='r', alpha=0.5)
+
+                buy_record = self.transaction_details[self.transaction_details['transact']=='Buy']
+                if len(buy_record)!=0:
+                    trade_x = buy_record.step
+                    trade_y = [self.price[i] for i in trade_x]
+                    trade_color = [(0.8,0,0) if i =='new' else (1,0.7,0.7) for i in buy_record.transact_type]
+                #trade_marker = ['v' if i =='Sell' else '^' for i in self.transaction_details.transact]
+                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='^',c=trade_color,edgecolors='none', zorder=2)
+                sell_record = self.transaction_details[self.transaction_details['transact']=='Sell']
+                if len(sell_record)!=0:
+                    trade_x = sell_record.step
+                    trade_y = [self.price[i] for i in trade_x]
+                    trade_color = [(0,1,0) if i =='new' else (0.7,1,0.7) for i in sell_record.transact_type]
+                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='v',c=trade_color,edgecolors='none',zorder=2)
+            self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
+            if save:
+                self.fig.savefig('fig/%s.png' % str(self.t_index))
+            plt.pause(0.3)
+    
+    
+    
     

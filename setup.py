@@ -8,5 +8,6 @@ setup(
     packages=find_packages(),
     install_requires=["pandas",
                       "numpy",
-                      "matplotlib",],
+                      "matplotlib",
+                      "h5py"],
 )
