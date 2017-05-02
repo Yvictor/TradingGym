@@ -1,5 +1,7 @@
 # TradingGym
 
+[![Build Status](https://travis-ci.org/Yvictor/TradingGym.svg?branch=master)](https://travis-ci.org/Yvictor/TradingGym)
+
 TradingGym is a toolkit for training and backtesting the reinforcement learning algorithms. This was inspired by OpenAI Gym and imitated the framework form. Not only traning env but also has backtesting and in the future will implement realtime trading env with Interactivate Broker API and so on.
 
 This training env originally design for tickdata, but also support for ohlc data format. WIP.
