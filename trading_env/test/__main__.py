@@ -19,6 +19,6 @@ for i in range(500):
     print(i)
     state, reward, done, info = env.step(np.random.randint(3))
     print(state, reward)
-    env.render()
+    # env.render()
     if done:
         break
