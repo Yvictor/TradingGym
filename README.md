@@ -64,6 +64,6 @@ env.transaction_details
 - deal_col_name: the column name for cucalate reward used.
 - feature_names: list contain the feature columns to use in trading status.
 
-[gif](fig/render.gif)
+![gif](fig/render.gif)
 
 
