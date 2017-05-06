@@ -456,5 +456,16 @@ class trading_env:
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
         return self.obs_res
+
+    def show_pattern(self, transact_index):
+        record_index = self.transaction_details.loc[transact_index]['step']
+        return self.df_sample.iloc[record_index-self.obs_len-1:record_index]
+    
+    def show_future(self, transact_index):
+        record_index = self.transaction_details.loc[transact_index]['step']
+        nextdf = self.df_sample.iloc[record_index:]
+        next_sess_index = nextdf[nextdf['serial_number']==0].iloc[0].name
+        return self.df_sample.iloc[record_index:next_sess_index]
+
     
     
