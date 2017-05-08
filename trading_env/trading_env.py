@@ -465,7 +465,7 @@ class trading_env:
         record_index = self.transaction_details.loc[transact_index]['step']
         nextdf = self.df_sample.iloc[record_index:]
         next_sess_index = nextdf[nextdf['serial_number']==0].iloc[0].name
-        return self.df_sample.iloc[record_index:next_sess_index]
+        return self.nextdf.loc[:next_sess_index]
 
     
     
