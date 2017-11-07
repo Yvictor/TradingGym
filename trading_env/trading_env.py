@@ -7,10 +7,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 class trading_env:
-    def __init__(self, obs_data_len, step_len,
+    def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
-                 fluc_div=100.0, gameover_limit=5):
+                 fluc_div=100.0, gameover_limit=5,
+                 *args, **kwargs):
+        """
         #assert df 
         # need deal price as essential and specified the df format
         # obs_data_leng -> observation data length
@@ -25,8 +27,9 @@ class trading_env:
         # deal_col_name -> the column name for cucalate reward used.
         # feature_names -> list contain the feature columns to use in trading status.
         # ?day trade option set as default if don't use this need modify
-        logging.basicConfig(level=logging.INFO,format='[%(asctime)s] %(message)s')
-        self.logger = logging.getLogger('Trade-v1')
+        """
+        logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
+        self.logger = logging.getLogger(env_id)
         #self.file_loc_path = os.environ.get('FILEPATH', '')
         
         self.df = df
@@ -53,7 +56,7 @@ class trading_env:
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
         self.transaction_details = pd.DataFrame()
-        self.logger.info('Making new env: Trading_Simulater-v0')
+        self.logger.info('Making new env: {}'.format(env_id))
         
     def reset(self):
         random_int = np.random.randint(self.date_leng)
