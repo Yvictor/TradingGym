@@ -184,9 +184,37 @@ class trading_env(trading_env_base):
                 self.chg_price_mean = (current_price_mean*abs(current_mkt_position) + \
                                        enter_price)/after_act_mkt_position
                 self.chg_posi = after_act_mkt_position
+        
+        elif action == 1 and current_mkt_position<0:
+            self.chg_price_mean = current_price_mean
+            self.chg_posi = current_mkt_position + 1
+            self.chg_makereal[0] = 1
+            self.chg_reward = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
+
+        elif action == 2 and current_mkt_position>0:
+            self.chg_price_mean = current_price_mean
+            self.chg_posi = current_mkt_position - 1
+            self.chg_makereal[0] = 1
+            self.chg_reward = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
+        
+        elif action == 1 and current_mkt_position==self.max_position:
+            action = 0
+        elif action == 2 and current_mkt_position==-self.max_position:
+            action = 0
+        
+        if action == 0:
+            if current_mkt_position != 0:
+                self.chg_posi = current_mkt_position
+                self.chg_price_mean = current_price_mean
 
         self.chg_reward_fluctuant = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
-    
+
+        done = False
+        if self.step_st+self.obs_len+self.step_len >= len(self.price):
+            done = True
+            
+
+
     def step(self, action):
         #price_current can be change next one to some avg of next_N or simulate with slippage
         next_index = self.step_st+self.obs_len+1
