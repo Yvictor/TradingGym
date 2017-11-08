@@ -1,17 +1,17 @@
 
+
 import os
 import logging
 
 import numpy as np
 import pandas as pd
-
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from base import trading_env_base
 
-
-class trading_env_base:
+class trading_env(trading_env_base):
     def __init__(self, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
@@ -40,7 +40,7 @@ class trading_env_base:
         self.df = df
         self.action_space = 3
         self.action_describe = {0:'do nothing',
-                                1:'buy',
+                                1:'long',
                                 2:'short'}
         
         self.obs_len = obs_data_len
@@ -65,34 +65,127 @@ class trading_env_base:
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
         
-    def reset(self):
+    def _long(self, mkt_position):
+        self.buy_price = self.price_current
+        if mkt_position > 0:
+            self.position_share = self.posi_l[-1]
+            abs_pos = abs(self.position_share)
+            self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
+            self.price_mean = (self.transaction_details.iloc[-1]['price_mean']*self.position_share + self.buy_price)/(self.position_share+1.0)
+            self.position_share += 1
+        else:
+            self.reward_fluctuant = 0.0
+            self.position_share = 1.0
+            self.price_mean = self.buy_price
+        self.posi_l += ([self.posi_l[-1] + 1 ]*self.step_len)
+        self.t_index += 1
+        transact_n = pd.DataFrame({'step': next_index,
+                                    'datetime': self.df_sample.iloc[next_index].datetime,
+                                    'transact': 'Buy',
+                                    'transact_type': 'new',
+                                    'price': self.buy_price, 'share': 1,
+                                    'price_mean': self.price_mean, 'position': self.position_share,
+                                    'reward_fluc': self.reward_fluctuant,
+                                    'reward': reward, 'reward_sum': self.reward_sum,
+                                    'color': self.buy_color, 'rotation': self.new_rotation}
+            ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
+                                        'reward','reward_sum','color','rotation'])
+        self.transaction_details = pd.concat([self.transaction_details,transact_n])
+    
+    def _short(self):
+        pass
+    
+    def _long_cover(self):
+        pass
+    
+    def _short_cover(self):
+        pass
+    
+    def _stayon(self):
+        pass
+
+    def _random_choice_section(self):
         random_int = np.random.randint(self.date_leng)
         if random_int == self.date_leng - 1:
             begin_point = self.begin_fs.index[random_int]
             end_point = None
         else:
             begin_point, end_point = self.begin_fs.index[random_int: random_int+2]
-        self.df_sample = self.df.iloc[begin_point: end_point]
+        df_section = self.df.iloc[begin_point: end_point]
+        return df_section
+
+    def reset(self):
+        self.df_sample = self._random_choice_section()
         self.step_st = 0
+        # define the price to calculate the reward
         self.price = self.df_sample[self.price_name].as_matrix()
+        # define the observation feature
         self.obs_features = self.df_sample[self.using_feature].as_matrix()
-        self.obs_res = self.obs_features[self.step_st: self.step_st+self.obs_len]
+        # init state
+        self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
         
         #maybe make market position feature in final feature, set as option
         self.posi_l = [0]*self.obs_len
+        self.posi_arr = np.zeros_like(self.price)
         # self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
         
-        self.reward_sum = 0
-        self.reward_fluctuant = 0
-        self.reward_ret = 0
+        self.price_mean_arr = self.price.copy()
+        self.reward_fluctuant_arr = (self.price - self.price_mean_arr)*self.posi_arr
+        self.reward_makereal_arr = self.posi_arr.copy()
+        self.reward_arr = self.reward_fluctuant_arr*self.reward_makereal
+
         self.transaction_details = pd.DataFrame()
-        self.reward_curve = []
         self.t_index = 0
         
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
-        return self.obs_res
+        return self.obs_state
     
+    def _step(self, action):
+        current_index = self.step_st + self.obs_len
+        current_price_mean = self.price_mean_arr[current_index]
+        current_mkt_position = self.posi_arr[current_index]
+
+        self.step_st += self.step_len
+        # observation part
+        self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
+        self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_price = self.price[self.step_st: self.step_st+self.obs_len]
+        self.obs_price_mean = self.price_mean_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_reward_fluctuant = self.reward_fluctuant_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
+        # change part
+        self.chg_posi = self.obs_posi[-self.step_len:]
+        self.chg_price = self.obs_price[-self.step_len:]
+        self.chg_price_mean = self.obs_price_mean[-self.step_len:]
+        self.chg_reward_fluctuant = self.obs_reward_fluctuant[-self.step_len:]
+        self.chg_makereal = self.obs_makereal[-self.step_len:]
+        self.chg_reward = self.obs_reward[-self.step_len:]
+
+        # use next tick, maybe choice avg in first 10 tick will be better to real backtest
+        enter_price = self.chg_price[0]
+        if action == 1 and self.max_position > current_mkt_position >= 0:
+            if current_mkt_position == 0:
+                self.chg_price_mean= enter_price
+                self.chg_posi = 1
+            else:
+                after_act_mkt_position = current_mkt_position + 1
+                self.chg_price_mean = (current_price_mean*current_mkt_position + \
+                                       enter_price)/after_act_mkt_position
+                self.chg_posi = after_act_mkt_position
+        
+        elif action == 2 and -self.max_position < current_mkt_position <= 0:
+            if current_mkt_position == 0:
+                self.chg_price_mean = enter_price
+                self.chg_posi = -1
+            else:
+                after_act_mkt_position = current_mkt_position - 1
+                self.chg_price_mean = (current_price_mean*abs(current_mkt_position) + \
+                                       enter_price)/after_act_mkt_position
+                self.chg_posi = after_act_mkt_position
+
+        self.chg_reward_fluctuant = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
     
     def step(self, action):
         #price_current can be change next one to some avg of next_N or simulate with slippage

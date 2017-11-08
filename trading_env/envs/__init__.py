@@ -1,5 +1,4 @@
-#from . import training-v0
+import training_v0
+import training_v1
 
-import .training-v0
-
-print(locals())
+print('training_v0' in locals())

@@ -1,18 +1,13 @@
-
+import pandas as pd
+import numpy as np
 import os
 import logging
-
-import numpy as np
-import pandas as pd
-
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-
-
-class trading_env_base:
-    def __init__(self, obs_data_len, step_len,
+class trading_env:
+    def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
                  fluc_div=100.0, gameover_limit=5,
@@ -38,10 +33,8 @@ class trading_env_base:
         #self.file_loc_path = os.environ.get('FILEPATH', '')
         
         self.df = df
-        self.action_space = 3
-        self.action_describe = {0:'do nothing',
-                                1:'buy',
-                                2:'short'}
+        self.action_space = np.array([3,])
+        self.gym_actions = range(3)
         
         self.obs_len = obs_data_len
         self.feature_len = len(feature_names)
