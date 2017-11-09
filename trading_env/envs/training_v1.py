@@ -104,7 +104,7 @@ class trading_env(trading_env_base):
         self.price_mean_arr = self.price.copy()
         self.reward_fluctuant_arr = (self.price - self.price_mean_arr)*self.posi_arr
         self.reward_makereal_arr = self.posi_arr.copy()
-        self.reward_arr = self.reward_fluctuant_arr*self.reward_makereal
+        self.reward_arr = self.reward_fluctuant_arr*self.reward_makereal_arr
 
         self.transaction_details = pd.DataFrame()
         self.t_index = 0
