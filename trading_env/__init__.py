@@ -1,7 +1,7 @@
 from .envs import available_envs_module
 
 def available_envs():
-    available_envs = [env_module.__name__ for env_module in available_envs_module]
+    available_envs = [env_module.__name__.split('.')[-1] for env_module in available_envs_module]
     wip = ['training-v0', 'backtest-v0', 'realtime-v0']
     return available_envs
 
