@@ -11,7 +11,7 @@ import matplotlib.patches as patches
 from .base import trading_env_base
 
 class trading_env(trading_env_base):
-    def __init__(self, obs_data_len, step_len,
+    def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
                  fluc_div=100.0, gameover_limit=5,
