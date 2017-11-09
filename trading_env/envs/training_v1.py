@@ -8,7 +8,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-from base import trading_env_base
+from .base import trading_env_base
 
 class trading_env(trading_env_base):
     def __init__(self, obs_data_len, step_len,

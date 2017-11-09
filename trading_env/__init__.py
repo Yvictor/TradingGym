@@ -1,4 +1,4 @@
-from envs import available_envs_module
+from .envs import available_envs_module
 
 def available_envs():
     available_envs = [env_module.__name__ for env_module in available_envs_module]
@@ -16,7 +16,8 @@ def make(env_id, obs_data_len, step_len,
     for col in feature_names:
         assert col in df.columns, "feature name: {} not in Dataframe.".format(col)
     #available_envs
-    env = trading_env(env_id=env_id, obs_data_len=obs_data_len, 
+    trading_env = available_envs_module[envs.index(env_id)].trading_env
+    env = trading_env(obs_data_len=obs_data_len, 
                       step_len=step_len ,df=df, fee=fee, 
                       deal_col_name=deal_col_name, 
                       feature_names=feature_names,
