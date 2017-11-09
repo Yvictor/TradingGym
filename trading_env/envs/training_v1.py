@@ -1,5 +1,4 @@
 
-
 import os
 import logging
 
@@ -64,33 +63,6 @@ class trading_env(trading_env_base):
         self.new_rotation, self.cover_rotation = (1, 2)
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
-        
-    def _long(self, mkt_position):
-        self.buy_price = self.price_current
-        if mkt_position > 0:
-            self.position_share = self.posi_l[-1]
-            abs_pos = abs(self.position_share)
-            self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
-            self.price_mean = (self.transaction_details.iloc[-1]['price_mean']*self.position_share + self.buy_price)/(self.position_share+1.0)
-            self.position_share += 1
-        else:
-            self.reward_fluctuant = 0.0
-            self.position_share = 1.0
-            self.price_mean = self.buy_price
-        self.posi_l += ([self.posi_l[-1] + 1 ]*self.step_len)
-        self.t_index += 1
-        transact_n = pd.DataFrame({'step': next_index,
-                                    'datetime': self.df_sample.iloc[next_index].datetime,
-                                    'transact': 'Buy',
-                                    'transact_type': 'new',
-                                    'price': self.buy_price, 'share': 1,
-                                    'price_mean': self.price_mean, 'position': self.position_share,
-                                    'reward_fluc': self.reward_fluctuant,
-                                    'reward': reward, 'reward_sum': self.reward_sum,
-                                    'color': self.buy_color, 'rotation': self.new_rotation}
-            ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                        'reward','reward_sum','color','rotation'])
-        self.transaction_details = pd.concat([self.transaction_details,transact_n])
     
     def _short(self):
         pass
@@ -141,7 +113,7 @@ class trading_env(trading_env_base):
         self.new_rotation, self.cover_rotation = (1, 2)
         return self.obs_state
     
-    def _step(self, action):
+    def step(self, action):
         current_index = self.step_st + self.obs_len
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
@@ -163,6 +135,16 @@ class trading_env(trading_env_base):
         self.chg_makereal = self.obs_makereal[-self.step_len:]
         self.chg_reward = self.obs_reward[-self.step_len:]
 
+        done = False
+        if self.step_st+self.obs_len+self.step_len >= len(self.price):
+            done = True
+            action = 0
+            if current_mkt_position != 0:
+                self.chg_price_mean = current_price_mean
+                self.chg_posi = 0
+                self.chg_makereal[0] = 1
+                self.chg_reward = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
+            
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
         enter_price = self.chg_price[0]
         if action == 1 and self.max_position > current_mkt_position >= 0:
@@ -209,261 +191,8 @@ class trading_env(trading_env_base):
 
         self.chg_reward_fluctuant = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
-        done = False
-        if self.step_st+self.obs_len+self.step_len >= len(self.price):
-            done = True
-            
-
-
-    def step(self, action):
-        #price_current can be change next one to some avg of next_N or simulate with slippage
-        next_index = self.step_st+self.obs_len+1
-        self.price_current = self.price[next_index]
-        self.make_real = 0
-        reward = 0.0
-        if action == 1 and self.max_position > self.posi_l[-1] >= 0:
-            self.buy_price = self.price_current
-            if self.posi_l[-1] > 0:
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                abs_pos = abs(self.position_share)
-                self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
-                self.price_mean = (self.transaction_details.iloc[-1]['price_mean']*self.position_share + self.buy_price)/(self.position_share+1.0)
-                self.position_share += 1
-            else:
-                self.reward_fluctuant = 0.0
-                self.position_share = 1.0
-                self.price_mean = self.buy_price
-            self.posi_l += ([self.posi_l[-1] + 1 ]*self.step_len)
-            self.t_index += 1
-            transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact': 'Buy',
-                                       'transact_type': 'new',
-                                       'price': self.buy_price, 'share': 1,
-                                       'price_mean': self.price_mean, 'position': self.position_share,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward': reward, 'reward_sum': self.reward_sum,
-                                       'color': self.buy_color, 'rotation': self.new_rotation}
-             ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-            self.transaction_details = pd.concat([self.transaction_details,transact_n])
+        return self.obs_state, self.obs_reward.sum(), done, None
         
-        elif action == 2 and -self.max_position < self.posi_l[-1] <= 0:
-            self.sell_price = self.price_current
-            if self.posi_l[-1] < 0:
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                abs_pos = abs(self.position_share)
-                self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share  - self.fee*abs_pos
-                self.price_mean = (-self.transaction_details.iloc[-1]['price_mean']*self.position_share + self.sell_price)/-(self.position_share-1.0)
-                self.position_share -= 1
-            else:
-                self.reward_fluctuant = 0.0
-                self.position_share = -1.0
-                self.price_mean = self.sell_price
-            
-            self.posi_l+=([self.posi_l[-1] - 1 ]*self.step_len)
-            self.t_index += 1
-            transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact': 'Sell',
-                                       'transact_type': 'new',
-                                       'price': self.sell_price, 'share':-1,
-                                       'price_mean': self.price_mean, 'position': self.position_share,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward': reward, 'reward_sum': self.reward_sum,
-                                       'color': self.sell_color,'rotation': self.new_rotation}
-             ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-            self.transaction_details = pd.concat([self.transaction_details,transact_n])        
-            
-        elif action == 1 and self.posi_l[-1]<0:
-            self.buy_price = self.price_current
-
-            self.position_share = self.transaction_details.iloc[-1].loc['position']
-            abs_pos = abs(self.position_share)
-            self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
-            self.position_share +=1
-            
-            reward = self.transaction_details.iloc[-1]['price_mean'] - self.buy_price - self.fee
-            self.reward_sum += reward
-            self.make_real = 1
-            self.posi_l += ([self.posi_l[-1] + 1 ]*self.step_len)
-            self.t_index += 1
-            transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Buy',
-                                       'transact_type':'cover',
-                                       'price':self.buy_price,'share':1,
-                                       'price_mean':self.price_mean, 'position':self.position_share,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.buy_color,'rotation':self.cover_rotation}
-             ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-            self.transaction_details = pd.concat([self.transaction_details,transact_n])
-        
-        elif action == 2 and self.posi_l[-1]>0:
-            self.sell_price = self.price_current
-            
-            self.position_share = self.transaction_details.iloc[-1].loc['position']
-            abs_pos = abs(self.position_share)
-            self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
-            self.position_share -=1
-            
-            reward = self.sell_price - self.transaction_details.iloc[-1]['price_mean'] - self.fee
-            self.reward_sum += reward
-            self.make_real = 1
-            self.posi_l+=([self.posi_l[-1] - 1 ]*self.step_len)
-            self.t_index +=1
-            transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Sell',
-                                       'transact_type':'cover',
-                                       'price':self.sell_price,'share':-1,
-                                       'price_mean':self.price_mean, 'position':self.position_share,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.sell_color,'rotation':self.cover_rotation}
-             ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-            self.transaction_details = pd.concat([self.transaction_details,transact_n])
-        
-        elif action ==1 and self.posi_l[-1]==self.max_position:
-            action = 0
-        elif action == 2 and self.posi_l[-1]== -self.max_position:
-            action = 0
-
-        if action ==0:
-            if self.posi_l[-1] != 0:
-                self.posi_l+=([self.posi_l[-1]]*self.step_len)
-                self.t_index +=1
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                abs_pos = abs(self.position_share)
-                self.reward_fluctuant = self.price_current*self.position_share - self.transaction_details.iloc[-1]['price_mean']*self.position_share - self.fee*abs_pos
-            else:
-                self.posi_l+=([self.posi_l[-1]]*self.step_len)
-                self.t_index +=1
-                self.reward_fluctuant = 0.0
-            
-        self.reward_curve.append((self.step_st+self.obs_len, self.reward_fluctuant+self.reward_sum))
-        
-        
-        self.step_st += self.step_len
-        done = False
-        if self.step_st+self.obs_len+self.step_len >= len(self.price):
-            done = True
-            if self.posi_l[-1] < 0:
-                self.make_real = 1
-                self.buy_price = self.price_current
-                self.posi_l+=([0]*self.step_len)
-                self.t_index += 1
-                self.reward_fluctuant = 0.0
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                reward = (self.transaction_details.iloc[-1]['price_mean'] - self.buy_price - self.fee)*(-self.position_share)
-                self.reward_sum +=reward
-                transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Buy',
-                                       'transact_type':'cover',
-                                       'price':self.buy_price,'share':-self.position_share,
-                                       'price_mean':self.price_mean, 'position':0,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.buy_color,'rotation':self.cover_rotation}
-                ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-                self.transaction_details = pd.concat([self.transaction_details,transact_n])
-
-                
-            if self.posi_l[-1] > 0:
-                self.make_real = 1
-                self.sell_price = self.price_current
-                self.posi_l+=([0]*self.step_len)
-                self.t_index += 1
-                self.reward_fluctuant = 0.0
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                reward = (self.sell_price - self.transaction_details.iloc[-1]['price_mean'] - self.fee)*self.position_share
-                self.reward_sum +=reward
-                transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Sell',
-                                       'transact_type':'cover',
-                                       'price':self.sell_price,'share':-self.position_share,
-                                       'price_mean':self.price_mean, 'position':0,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.sell_color,'rotation':self.cover_rotation}
-                ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-                self.transaction_details = pd.concat([self.transaction_details,transact_n])
-
-                
-                
-        elif self.gameover and self.reward_sum+self.reward_fluctuant < -self.gameover:#3.5:
-            done = True
-            if self.posi_l[-1] < 0:
-                self.make_real = 1
-                self.buy_price = self.price_current
-                self.posi_l+=([0]*self.step_len)
-                self.t_index += 1
-                self.reward_fluctuant = 0.0
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                reward = (self.transaction_details.iloc[-1]['price_mean'] - self.buy_price - self.fee)*(-self.position_share)
-                self.reward_sum +=reward
-                transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Buy',
-                                       'transact_type':'cover',
-                                       'price':self.buy_price,'share':-self.position_share,
-                                       'price_mean':self.price_mean, 'position':0,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.buy_color,'rotation':self.cover_rotation}
-                ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-                self.transaction_details = pd.concat([self.transaction_details,transact_n])
-
-                
-            if self.posi_l[-1] > 0:
-                self.make_real = 1
-                self.sell_price = self.price_current
-                self.posi_l+=([0]*self.step_len)
-                self.t_index += 1
-                self.reward_fluctuant = 0.0
-                self.position_share = self.transaction_details.iloc[-1].loc['position']
-                reward = (self.sell_price - self.transaction_details.iloc[-1]['price_mean'] - self.fee)*self.position_share
-                self.reward_sum +=reward
-                transact_n = pd.DataFrame({'step': next_index,
-                                       'datetime': self.df_sample.iloc[next_index].datetime,
-                                       'transact':'Sell',
-                                       'transact_type':'cover',
-                                       'price':self.sell_price,'share':-self.position_share,
-                                       'price_mean':self.price_mean, 'position':0,
-                                       'reward_fluc': self.reward_fluctuant,
-                                       'reward':reward,'reward_sum':self.reward_sum,
-                                       'color':self.sell_color,'rotation':self.cover_rotation}
-                ,index=[self.t_index],columns=['step','datetime','transact','transact_type','price','share','price_mean','position','reward_fluc',
-                                            'reward','reward_sum','color','rotation'])
-                self.transaction_details = pd.concat([self.transaction_details,transact_n])
-
-        
-        #self.logger.debug('Setp %d : make action %d'%(self.t_index,action))
-        self.obs_res = self.obs_features[self.step_st: self.step_st+self.obs_len]
-        
-        # position feature
-        #self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
-        #self.obs_res = np.array([self.price_feature,self.up_down_feature,self.ask_bid_feature,self.vol_feature,self.position_feature]).reshape(1,self.obs_len,self.feature_len)
-        #self.obs_pv = np.concatenate([self.price_feature,self.up_down_feature,self.ask_bid_feature,self.vol_feature])
-        self.reward_ret = 0.0
-        if self.make_real == 0:
-            self.reward_ret = self.reward_fluctuant/self.fluc_div
-        elif self.make_real ==1:
-            self.reward_ret = reward
-        #if self.reward_ret < 0:
-            #self.reward_ret = -0.005
-        #self.obs_res = np.concatenate((self.obs_pv.reshape(self.obs_len*self.feature_len),self.position))#.astype(float)
-        info = None
-        return self.obs_res, self.reward_ret, done, info
     
     def render(self, save=False):
         if self.render_on == 0:

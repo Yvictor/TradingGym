@@ -1,7 +1,7 @@
-from .trading_env import trading_env
+from envs import available_envs_module
 
 def available_envs():
-    available_envs = ['training-v0', 'backtest-v0']
+    available_envs = [env_module.__name__ for env_module in available_envs_module]
     wip = ['training-v0', 'backtest-v0', 'realtime-v0']
     return available_envs
 
@@ -15,6 +15,7 @@ def make(env_id, obs_data_len, step_len,
     assert 'serial_number' in df.columns, "need serial_number columns to know where the day start."
     for col in feature_names:
         assert col in df.columns, "feature name: {} not in Dataframe.".format(col)
+    #available_envs
     env = trading_env(env_id=env_id, obs_data_len=obs_data_len, 
                       step_len=step_len ,df=df, fee=fee, 
                       deal_col_name=deal_col_name, 
