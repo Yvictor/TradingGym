@@ -17,7 +17,7 @@ def make(env_id, obs_data_len, step_len,
         assert col in df.columns, "feature name: {} not in Dataframe.".format(col)
     #available_envs
     trading_env = available_envs_module[envs.index(env_id)].trading_env
-    env = trading_env(env_id=env_id
+    env = trading_env(env_id=env_id,
                       obs_data_len=obs_data_len, 
                       step_len=step_len ,df=df, fee=fee, 
                       deal_col_name=deal_col_name, 
