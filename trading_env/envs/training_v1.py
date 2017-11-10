@@ -142,7 +142,7 @@ class trading_env(trading_env_base):
             if current_mkt_position != 0:
                 self.chg_price_mean[:] = current_price_mean
                 self.chg_posi[:] = 0
-                self.chg_makereal[0] = 1
+                self.chg_makereal[:1] = 1
                 self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
             
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
@@ -170,13 +170,13 @@ class trading_env(trading_env_base):
         elif action == 1 and current_mkt_position<0:
             self.chg_price_mean[:] = current_price_mean
             self.chg_posi[:] = current_mkt_position + 1
-            self.chg_makereal[0] = 1
+            self.chg_makereal[:1] = 1
             self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
 
         elif action == 2 and current_mkt_position>0:
             self.chg_price_mean[:] = current_price_mean
             self.chg_posi[:] = current_mkt_position - 1
-            self.chg_makereal[0] = 1
+            self.chg_makereal[:1] = 1
             self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
         
         elif action == 1 and current_mkt_position==self.max_position:
