@@ -140,44 +140,44 @@ class trading_env(trading_env_base):
             done = True
             action = 0
             if current_mkt_position != 0:
-                self.chg_price_mean = current_price_mean
-                self.chg_posi = 0
+                self.chg_price_mean[:] = current_price_mean
+                self.chg_posi[:] = 0
                 self.chg_makereal[0] = 1
-                self.chg_reward = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
+                self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
             
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
         enter_price = self.chg_price[0]
         if action == 1 and self.max_position > current_mkt_position >= 0:
             if current_mkt_position == 0:
-                self.chg_price_mean= enter_price
-                self.chg_posi = 1
+                self.chg_price_mean[:] = enter_price
+                self.chg_posi[:] = 1
             else:
                 after_act_mkt_position = current_mkt_position + 1
-                self.chg_price_mean = (current_price_mean*current_mkt_position + \
+                self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
                                        enter_price)/after_act_mkt_position
-                self.chg_posi = after_act_mkt_position
+                self.chg_posi[:] = after_act_mkt_position
         
         elif action == 2 and -self.max_position < current_mkt_position <= 0:
             if current_mkt_position == 0:
-                self.chg_price_mean = enter_price
-                self.chg_posi = -1
+                self.chg_price_mean[:] = enter_price
+                self.chg_posi[:] = -1
             else:
                 after_act_mkt_position = current_mkt_position - 1
-                self.chg_price_mean = (current_price_mean*abs(current_mkt_position) + \
+                self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
                                        enter_price)/after_act_mkt_position
-                self.chg_posi = after_act_mkt_position
+                self.chg_posi[:] = after_act_mkt_position
         
         elif action == 1 and current_mkt_position<0:
-            self.chg_price_mean = current_price_mean
-            self.chg_posi = current_mkt_position + 1
+            self.chg_price_mean[:] = current_price_mean
+            self.chg_posi[:] = current_mkt_position + 1
             self.chg_makereal[0] = 1
-            self.chg_reward = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
+            self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
 
         elif action == 2 and current_mkt_position>0:
-            self.chg_price_mean = current_price_mean
-            self.chg_posi = current_mkt_position - 1
+            self.chg_price_mean[:] = current_price_mean
+            self.chg_posi[:] = current_mkt_position - 1
             self.chg_makereal[0] = 1
-            self.chg_reward = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
+            self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
         
         elif action == 1 and current_mkt_position==self.max_position:
             action = 0
@@ -186,10 +186,10 @@ class trading_env(trading_env_base):
         
         if action == 0:
             if current_mkt_position != 0:
-                self.chg_posi = current_mkt_position
-                self.chg_price_mean = current_price_mean
+                self.chg_posi[:] = current_mkt_position
+                self.chg_price_mean[:] = current_price_mean
 
-        self.chg_reward_fluctuant = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
+        self.chg_reward_fluctuant[:] = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
         return self.obs_state, self.obs_reward.sum(), done, None
         
@@ -294,35 +294,3 @@ class trading_env(trading_env_base):
             plt.pause(0.3)
     
     
-    def backtest(self):
-        self.gameover = None
-        self.df_sample = self.df
-        self.step_st = 0
-        self.price = self.df_sample[self.price_name].as_matrix()
-        self.obs_features = self.df_sample[self.using_feature].as_matrix()
-        self.obs_res = self.obs_features[self.step_st: self.step_st+self.obs_len]
-        
-        #maybe make market position feature in final feature, set as option
-        self.posi_l = [0]*self.obs_len
-        # self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
-        
-        self.reward_sum = 0
-        self.reward_fluctuant = 0
-        self.reward_ret = 0
-        self.transaction_details = pd.DataFrame()
-        self.reward_curve = []
-        self.t_index = 0
-        
-        self.buy_color, self.sell_color = (1, 2)
-        self.new_rotation, self.cover_rotation = (1, 2)
-        return self.obs_res
-
-    def show_pattern(self, transact_index):
-        record_index = self.transaction_details.loc[transact_index]['step']
-        return self.df_sample.iloc[record_index-self.obs_len-1:record_index]
-    
-    def show_future(self, transact_index):
-        record_index = self.transaction_details.loc[transact_index]['step']
-        nextdf = self.df_sample.iloc[record_index:]
-        next_sess_index = nextdf[nextdf['serial_number']==0].iloc[0].name
-        return nextdf.loc[:next_sess_index]
