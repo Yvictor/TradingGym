@@ -114,7 +114,7 @@ class trading_env(trading_env_base):
         return self.obs_state
     
     def step(self, action):
-        current_index = self.step_st + self.obs_len
+        current_index = self.step_st + self.obs_len -1
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
 
