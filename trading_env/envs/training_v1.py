@@ -93,11 +93,7 @@ class trading_env(trading_env_base):
         self.price = self.df_sample[self.price_name].as_matrix()
         # define the observation feature
         self.obs_features = self.df_sample[self.using_feature].as_matrix()
-        # init state
-        self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
-        
         #maybe make market position feature in final feature, set as option
-        self.posi_l = [0]*self.obs_len
         self.posi_arr = np.zeros_like(self.price)
         # self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
         
@@ -107,7 +103,15 @@ class trading_env(trading_env_base):
         self.reward_arr = self.reward_fluctuant_arr*self.reward_makereal_arr
 
         self.transaction_details = pd.DataFrame()
-        self.t_index = 0
+        
+        # observation part
+        self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
+        self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_price = self.price[self.step_st: self.step_st+self.obs_len]
+        self.obs_price_mean = self.price_mean_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_reward_fluctuant = self.reward_fluctuant_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
         
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
