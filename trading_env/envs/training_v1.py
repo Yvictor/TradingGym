@@ -164,7 +164,7 @@ class trading_env(trading_env_base):
             else:
                 after_act_mkt_position = current_mkt_position - 1
                 self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
-                                       enter_price)/after_act_mkt_position
+                                          enter_price)/abs(after_act_mkt_position)
                 self.chg_posi[:] = after_act_mkt_position
         
         elif action == 1 and current_mkt_position<0:
