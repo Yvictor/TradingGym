@@ -139,7 +139,7 @@ class trading_env(trading_env_base):
             self.chg_posi_var[:1] = -1
             self.chg_posi_entry_cover[:1] = 2
           
-    def _long_cover(self, current_price_mean, current_mkt_position):
+    def _short_cover(self, current_price_mean, current_mkt_position):
         self.chg_price_mean[:] = current_price_mean
         self.chg_posi[:] = current_mkt_position + 1
         self.chg_makereal[:1] = 1
@@ -147,7 +147,7 @@ class trading_env(trading_env_base):
         self.chg_posi_var[:1] = 1
         self.chg_posi_entry_cover[:1] = -1
     
-    def _short_cover(self, current_price_mean, current_mkt_position):
+    def _long_cover(self, current_price_mean, current_mkt_position):
         self.chg_price_mean[:] = current_price_mean
         self.chg_posi[:] = current_mkt_position - 1
         self.chg_makereal[:1] = 1
@@ -203,48 +203,18 @@ class trading_env(trading_env_base):
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
         enter_price = self.chg_price[0]
         if action == 1 and self.max_position > current_mkt_position >= 0:
-            if current_mkt_position == 0:
-                self.chg_price_mean[:] = enter_price
-                self.chg_posi[:] = 1
-                self.chg_posi_var[:1] = 1
-                self.chg_posi_entry_cover[:1] = 1
-            else:
-                after_act_mkt_position = current_mkt_position + 1
-                self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
-                                          enter_price)/after_act_mkt_position
-                self.chg_posi[:] = after_act_mkt_position
-                self.chg_posi_var[:1] = 1
-                self.chg_posi_entry_cover[:1] = 2
+            open_posi = (current_mkt_position == 0)
+            self._long(open_posi, enter_price, current_mkt_position, current_price_mean)
         
         elif action == 2 and -self.max_position < current_mkt_position <= 0:
-            if current_mkt_position == 0:
-                self.chg_price_mean[:] = enter_price
-                self.chg_posi[:] = -1
-                self.chg_posi_var[:1] = -1
-                self.chg_posi_entry_cover[:1] = 1
-            else:
-                after_act_mkt_position = current_mkt_position - 1
-                self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
-                                          enter_price)/abs(after_act_mkt_position)
-                self.chg_posi[:] = after_act_mkt_position
-                self.chg_posi_var[:1] = -1
-                self.chg_posi_entry_cover[:1] = 2
+            open_posi = (current_mkt_position == 0)
+            self._short(open_posi, enter_price, current_mkt_position, current_price_mean)
         
         elif action == 1 and current_mkt_position<0:
-            self.chg_price_mean[:] = current_price_mean
-            self.chg_posi[:] = current_mkt_position + 1
-            self.chg_makereal[:1] = 1
-            self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
-            self.chg_posi_var[:1] = 1
-            self.chg_posi_entry_cover[:1] = -1
+            self._short_cover(current_price_mean, current_mkt_position)
 
         elif action == 2 and current_mkt_position>0:
-            self.chg_price_mean[:] = current_price_mean
-            self.chg_posi[:] = current_mkt_position - 1
-            self.chg_makereal[:1] = 1
-            self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
-            self.chg_posi_var[:1] = -1
-            self.chg_posi_entry_cover[:1] = -1
+            self._long_cover(current_price_mean, current_mkt_position)
 
         elif action == 1 and current_mkt_position==self.max_position:
             action = 0
@@ -253,8 +223,7 @@ class trading_env(trading_env_base):
         
         if action == 0:
             if current_mkt_position != 0:
-                self.chg_posi[:] = current_mkt_position
-                self.chg_price_mean[:] = current_price_mean
+                self._stayon(current_price_mean, current_mkt_position)
 
         self.chg_reward_fluctuant[:] = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
