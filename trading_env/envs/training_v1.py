@@ -64,18 +64,6 @@ class trading_env(trading_env_base):
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
     
-    def _short(self):
-        pass
-    
-    def _long_cover(self):
-        pass
-    
-    def _short_cover(self):
-        pass
-    
-    def _stayon(self):
-        pass
-
     def _random_choice_section(self):
         random_int = np.random.randint(self.date_leng)
         if random_int == self.date_leng - 1:
@@ -95,6 +83,10 @@ class trading_env(trading_env_base):
         self.obs_features = self.df_sample[self.using_feature].as_matrix()
         #maybe make market position feature in final feature, set as option
         self.posi_arr = np.zeros_like(self.price)
+        # position variation
+        self.posi_variation_arr = np.zeros_like(self.posi_arr)
+        # position entry or cover :new_entry->1  increase->2 cover->-1 decrease->-2
+        self.posi_entry_cover_arr = np.zeros_like(self.posi_arr)
         # self.position_feature = np.array(self.posi_l[self.step_st:self.step_st+self.obs_len])/(self.max_position*2)+0.5
         
         self.price_mean_arr = self.price.copy()
@@ -107,25 +99,80 @@ class trading_env(trading_env_base):
         # observation part
         self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
         self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_posi_var = self.posi_variation_arr[self.step_st: self.step_st+self.obs_len]
+        self.obs_posi_entry_cover = self.posi_entry_cover_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_price = self.price[self.step_st: self.step_st+self.obs_len]
         self.obs_price_mean = self.price_mean_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward_fluctuant = self.reward_fluctuant_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
         
-        self.buy_color, self.sell_color = (1, 2)
-        self.new_rotation, self.cover_rotation = (1, 2)
+        self.t_index = 0
         return self.obs_state
     
+
+    def _long(self, open_posi, enter_price, current_mkt_position, current_price_mean):
+        if open_posi:
+            self.chg_price_mean[:] = enter_price
+            self.chg_posi[:] = 1
+            self.chg_posi_var[:1] = 1
+            self.chg_posi_entry_cover[:1] = 1
+        else:
+            after_act_mkt_position = current_mkt_position + 1
+            self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
+                                        enter_price)/after_act_mkt_position
+            self.chg_posi[:] = after_act_mkt_position
+            self.chg_posi_var[:1] = 1
+            self.chg_posi_entry_cover[:1] = 2
+            
+    def _short(self, open_posi, enter_price, current_mkt_position, current_price_mean):
+        if open_posi:
+            self.chg_price_mean[:] = enter_price
+            self.chg_posi[:] = -1
+            self.chg_posi_var[:1] = -1
+            self.chg_posi_entry_cover[:1] = 1
+        else:
+            after_act_mkt_position = current_mkt_position - 1
+            self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
+                                      enter_price)/abs(after_act_mkt_position)
+            self.chg_posi[:] = after_act_mkt_position
+            self.chg_posi_var[:1] = -1
+            self.chg_posi_entry_cover[:1] = 2
+          
+    def _long_cover(self, current_price_mean, current_mkt_position):
+        self.chg_price_mean[:] = current_price_mean
+        self.chg_posi[:] = current_mkt_position + 1
+        self.chg_makereal[:1] = 1
+        self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
+        self.chg_posi_var[:1] = 1
+        self.chg_posi_entry_cover[:1] = -1
+    
+    def _short_cover(self, current_price_mean, current_mkt_position):
+        self.chg_price_mean[:] = current_price_mean
+        self.chg_posi[:] = current_mkt_position - 1
+        self.chg_makereal[:1] = 1
+        self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
+        self.chg_posi_var[:1] = -1
+        self.chg_posi_entry_cover[:1] = -1
+    
+    def _stayon(self, current_price_mean, current_mkt_position):
+        self.chg_posi[:] = current_mkt_position
+        self.chg_price_mean[:] = current_price_mean
+
     def step(self, action):
         current_index = self.step_st + self.obs_len -1
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
 
+        self.t_index += 1
         self.step_st += self.step_len
         # observation part
         self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
         self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
+        # position variation
+        self.obs_posi_var = self.posi_variation_arr[self.step_st: self.step_st+self.obs_len]
+        # position entry or cover :new_entry->1  increase->2 cover->-1 decrease->-2
+        self.obs_posi_entry_cover = self.posi_entry_cover_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_price = self.price[self.step_st: self.step_st+self.obs_len]
         self.obs_price_mean = self.price_mean_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward_fluctuant = self.reward_fluctuant_arr[self.step_st: self.step_st+self.obs_len]
@@ -133,6 +180,8 @@ class trading_env(trading_env_base):
         self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
         # change part
         self.chg_posi = self.obs_posi[-self.step_len:]
+        self.chg_posi_var = self.obs_posi_var[-self.step_len:]
+        self.chg_posi_entry_cover = self.obs_posi_entry_cover[-self.step_len:]
         self.chg_price = self.obs_price[-self.step_len:]
         self.chg_price_mean = self.obs_price_mean[-self.step_len:]
         self.chg_reward_fluctuant = self.obs_reward_fluctuant[-self.step_len:]
@@ -146,6 +195,8 @@ class trading_env(trading_env_base):
             if current_mkt_position != 0:
                 self.chg_price_mean[:] = current_price_mean
                 self.chg_posi[:] = 0
+                self.chg_posi_var[:1] = -current_mkt_position
+                self.chg_posi_entry_cover[:1] = -2
                 self.chg_makereal[:1] = 1
                 self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
             
@@ -155,34 +206,46 @@ class trading_env(trading_env_base):
             if current_mkt_position == 0:
                 self.chg_price_mean[:] = enter_price
                 self.chg_posi[:] = 1
+                self.chg_posi_var[:1] = 1
+                self.chg_posi_entry_cover[:1] = 1
             else:
                 after_act_mkt_position = current_mkt_position + 1
                 self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
                                           enter_price)/after_act_mkt_position
                 self.chg_posi[:] = after_act_mkt_position
+                self.chg_posi_var[:1] = 1
+                self.chg_posi_entry_cover[:1] = 2
         
         elif action == 2 and -self.max_position < current_mkt_position <= 0:
             if current_mkt_position == 0:
                 self.chg_price_mean[:] = enter_price
                 self.chg_posi[:] = -1
+                self.chg_posi_var[:1] = -1
+                self.chg_posi_entry_cover[:1] = 1
             else:
                 after_act_mkt_position = current_mkt_position - 1
                 self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
                                           enter_price)/abs(after_act_mkt_position)
                 self.chg_posi[:] = after_act_mkt_position
+                self.chg_posi_var[:1] = -1
+                self.chg_posi_entry_cover[:1] = 2
         
         elif action == 1 and current_mkt_position<0:
             self.chg_price_mean[:] = current_price_mean
             self.chg_posi[:] = current_mkt_position + 1
             self.chg_makereal[:1] = 1
             self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(-1) - self.fee)*self.chg_makereal
+            self.chg_posi_var[:1] = 1
+            self.chg_posi_entry_cover[:1] = -1
 
         elif action == 2 and current_mkt_position>0:
             self.chg_price_mean[:] = current_price_mean
             self.chg_posi[:] = current_mkt_position - 1
             self.chg_makereal[:1] = 1
             self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(1) - self.fee)*self.chg_makereal
-        
+            self.chg_posi_var[:1] = -1
+            self.chg_posi_entry_cover[:1] = -1
+
         elif action == 1 and current_mkt_position==self.max_position:
             action = 0
         elif action == 2 and current_mkt_position==-self.max_position:
@@ -196,8 +259,46 @@ class trading_env(trading_env_base):
         self.chg_reward_fluctuant[:] = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
         return self.obs_state, self.obs_reward.sum(), done, None
-        
+
+    def _gen_trade_color(self, ind, long_entry=(0.8,0,0), long_cover=(1,0.7,0.7), 
+                            short_entry=(0,1,0), short_cover=(0.7,1,0.7)): 
+        if self.posi_variation_arr[ind]>0 and self.posi_entry_cover_arr[ind]>0:
+            return long_entry
+        elif self.posi_variation_arr[ind]>0 and self.posi_entry_cover_arr[ind]<0:
+            return long_cover
+        elif self.posi_variation_arr[ind]<0 and self.posi_entry_cover_arr[ind]>0:
+            return short_entry
+        elif self.posi_variation_arr[ind]<0 and self.posi_entry_cover_arr[ind]<0:
+            return short_cover 
     
+    def _plot_trading(self):
+        price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
+        self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
+        self.feature1_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
+        rect_high = self.obs_price.max() - self.obs_price.min()
+        self.target_box = self.ax.add_patch(
+                            patches.Rectangle(
+                            (self.step_st, self.obs_price.min()), self.obs_len, rect_high,
+                            label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.8),linestyle=':',linewidth=2,
+                            fill=True)
+                            )     # remove background)
+        self.fluc_reward_plot = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len], facecolor='yellow', alpha=0.8)
+        self.reward_plot = self.ax2.fill_between(price_x, 0, self.reward_arr[:self.step_st+self.obs_len].cumsum(), facecolor='cyan', alpha=0.5)
+        self.posi_plot = self.ax2.fill_between(price_x, 0, self.posi_arr[:self.step_st+self.obs_len], facecolor='r', alpha=0.5)
+
+        trade_x = self.posi_variation_arr.nonzero()[0]
+        trade_x_buy = [i for i in trade_x if self.posi_variation_arr[i]>0]
+        trade_x_sell = [i for i in trade_x if self.posi_variation_arr[i]<0 ]
+        trade_y_buy = [self.price[i] for i in trade_x_buy]
+        trade_y_sell =  [self.price[i] for i in trade_x_sell]
+        trade_color_buy = [self._gen_trade_color(i) for i in trade_x_buy] 
+        trade_color_sell = [self._gen_trade_color(i) for i in trade_x_sell]
+        self.trade_plot = self.ax.scatter(x=trade_x_buy, y=trade_y_buy, s=100, marker='^', 
+                                            c=trade_color_buy, edgecolors='none', zorder=2)
+        self.trade_plot = self.ax.scatter(x=trade_x_sell, y=trade_y_sell, s=100, marker='v', 
+                                            c=trade_color_sell, edgecolors='none', zorder=2)
+
+
     def render(self, save=False):
         if self.render_on == 0:
             matplotlib.style.use('dark_background')
@@ -215,33 +316,7 @@ class trading_env(trading_env_base):
             self.ax2 = self.fig.add_axes(rect2, sharex=self.ax)
             self.ax3 = self.fig.add_axes(rect3, sharex=self.ax)
             #fig, ax = plt.subplots()
-            price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
-            self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
-            self.vol_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
-            rect_high = self.price[self.step_st:self.step_st+self.obs_len].max() - self.price[self.step_st:self.step_st+self.obs_len].min()
-            self.target_box = self.ax.add_patch(
-                              patches.Rectangle(
-                              (self.step_st, self.price[self.step_st:self.step_st+self.obs_len].min()),self.obs_len,rect_high,
-                              label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.8),linestyle=':',linewidth=2,
-                              fill=True)
-                              )     # remove background)
-            self.fluc_reward_plot = self.ax2.fill_between([x[0] for x in self.reward_curve],0,[y[1] for y in self.reward_curve],facecolor='yellow',alpha=0.8)
-            if len(self.transaction_details)!=0:
-                self.reward_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.reward_sum,facecolor='cyan', alpha=0.5)
-                self.share_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.position,facecolor='r', alpha=0.5)
-                buy_record = self.transaction_details[self.transaction_details['transact']=='Buy']
-                if len(buy_record)!=0:
-                    trade_x = buy_record.step
-                    trade_y = [self.price[i] for i in trade_x]
-                    trade_color = [(1,0,0) if i =='new' else (1,0.7,0.7) for i in buy_record.transact_type]
-                #trade_marker = ['v' if i =='Sell' else '^' for i in self.transaction_details.transact]
-                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='^',c=trade_color,edgecolors='none', zorder=2)
-                sell_record = self.transaction_details[self.transaction_details['transact']=='Sell']
-                if len(sell_record)!=0:
-                    trade_x = sell_record.step
-                    trade_y = [self.price[i] for i in trade_x]
-                    trade_color = [(0,1,0) if i =='new' else (0.7,1,0.7) for i in sell_record.transact_type]
-                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='v',c=trade_color,edgecolors='none',zorder=2)
+            self._plot_trading()
 
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             plt.ion()
@@ -249,49 +324,18 @@ class trading_env(trading_env_base):
             plt.show()
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
+
         elif self.render_on == 1:
             self.ax.lines.remove(self.price_plot[0])
-            self.ax3.lines.remove(self.vol_plot[0])
-            price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
-            self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
-            self.vol_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
+            self.ax3.lines.remove(self.feature1_plot[0])
             self.fluc_reward_plot.remove()
             self.target_box.remove()
-            try:
-                self.reward_plot.remove()
-                self.share_plot.remove()
-            except:
-                pass
-            self.fluc_reward_plot = self.ax2.fill_between([x[0] for x in self.reward_curve],0,[y[1] for y in self.reward_curve],facecolor='yellow',alpha=0.8)
-            rect_high = self.price[self.step_st:self.step_st+self.obs_len].max() - self.price[self.step_st:self.step_st+self.obs_len].min()
-            self.target_box = self.ax.add_patch(
-                              patches.Rectangle(
-                              (self.step_st, self.price[self.step_st:self.step_st+self.obs_len].min()),self.obs_len,rect_high,
-                              label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.75),linestyle=':',linewidth=2,
-                              fill=True)
-                              )              
+            self.reward_plot.remove()
+            self.posi_plot.remove()
+            self.trade_plot.remove()
 
-            if len(self.transaction_details)!=0:
-                try:
-                    self.trade_plot.remove()
-                except:
-                    pass
-                self.reward_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.reward_sum,edgecolors='cyan',facecolor='cyan')
-                self.share_plot = self.ax2.fill_between(self.transaction_details.step,0,self.transaction_details.position,facecolor='r', alpha=0.5)
+            self._plot_trading()
 
-                buy_record = self.transaction_details[self.transaction_details['transact']=='Buy']
-                if len(buy_record)!=0:
-                    trade_x = buy_record.step
-                    trade_y = [self.price[i] for i in trade_x]
-                    trade_color = [(0.8,0,0) if i =='new' else (1,0.7,0.7) for i in buy_record.transact_type]
-                #trade_marker = ['v' if i =='Sell' else '^' for i in self.transaction_details.transact]
-                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='^',c=trade_color,edgecolors='none', zorder=2)
-                sell_record = self.transaction_details[self.transaction_details['transact']=='Sell']
-                if len(sell_record)!=0:
-                    trade_x = sell_record.step
-                    trade_y = [self.price[i] for i in trade_x]
-                    trade_color = [(0,1,0) if i =='new' else (0.7,1,0.7) for i in sell_record.transact_type]
-                    self.trade_plot = self.ax.scatter(x=trade_x,y=trade_y,s=100,marker='v',c=trade_color,edgecolors='none',zorder=2)
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
