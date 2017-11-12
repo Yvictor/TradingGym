@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from colour import Color
 
 from .base import trading_env_base
 
@@ -229,8 +230,8 @@ class trading_env(trading_env_base):
 
         return self.obs_state, self.obs_reward.sum(), done, None
 
-    def _gen_trade_color(self, ind, long_entry=(0.8,0,0), long_cover=(1,0.7,0.7), 
-                            short_entry=(0,1,0), short_cover=(0.7,1,0.7)): 
+    def _gen_trade_color(self, ind, long_entry=(1, 0, 0, 0.5), long_cover=(1, 1, 1, 0.5), 
+                         short_entry=(0, 1, 0, 0.5), short_cover=(1, 1, 1, 0.5)): 
         if self.posi_variation_arr[ind]>0 and self.posi_entry_cover_arr[ind]>0:
             return long_entry
         elif self.posi_variation_arr[ind]>0 and self.posi_entry_cover_arr[ind]<0:
@@ -242,30 +243,51 @@ class trading_env(trading_env_base):
     
     def _plot_trading(self):
         price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
-        self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], 'dodgerblue',zorder=1)
-        self.feature1_plot = self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, 1], 'cyan')
+        self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], c=(0, 0.68, 0.95, 0.9),zorder=1)
+        # maybe seperate up down color
+        #self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], c=(0, 0.75, 0.95, 0.9),zorder=1)
+        self.features_plot = [self.ax3.plot(price_x, self.obs_features[:self.step_st+self.obs_len, i], 
+                                            c=self.features_color[i])[0] for i in range(self.feature_len)]
         rect_high = self.obs_price.max() - self.obs_price.min()
         self.target_box = self.ax.add_patch(
                             patches.Rectangle(
                             (self.step_st, self.obs_price.min()), self.obs_len, rect_high,
-                            label='observation',edgecolor=(1,1,1),facecolor=(0.95,1,0.1,0.8),linestyle=':',linewidth=2,
+                            label='observation',edgecolor=(0.9, 1, 0.2, 0.8),facecolor=(0.95,1,0.1,0.3),
+                            linestyle='-',linewidth=1.5,
                             fill=True)
                             )     # remove background)
-        self.fluc_reward_plot = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len], facecolor='yellow', alpha=0.8)
-        self.reward_plot = self.ax2.fill_between(price_x, 0, self.reward_arr[:self.step_st+self.obs_len].cumsum(), facecolor='cyan', alpha=0.5)
-        self.posi_plot = self.ax2.fill_between(price_x, 0, self.posi_arr[:self.step_st+self.obs_len], facecolor='r', alpha=0.5)
+        self.fluc_reward_plot_p = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len],
+                                                        where=self.reward_fluctuant_arr[:self.step_st+self.obs_len]>=0, 
+                                                        facecolor=(1, 0.8, 0, 0.2), edgecolor=(1, 0.8, 0, 0.9), linewidth=0.8)
+        self.fluc_reward_plot_n = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len],
+                                                        where=self.reward_fluctuant_arr[:self.step_st+self.obs_len]<=0, 
+                                                        facecolor=(0, 1, 0.8, 0.2), edgecolor=(0, 1, 0.8, 0.9), linewidth=0.8)
+        self.posi_plot_long = self.ax2.fill_between(price_x, 0, self.posi_arr[:self.step_st+self.obs_len], 
+                                                    where=self.posi_arr[:self.step_st+self.obs_len]>=0, 
+                                                    facecolor=(1, 0.5, 0, 0.2), edgecolor=(1, 0.5, 0, 0.9), linewidth=1)
+        self.posi_plot_short = self.ax2.fill_between(price_x, 0, self.posi_arr[:self.step_st+self.obs_len], 
+                                                     where=self.posi_arr[:self.step_st+self.obs_len]<=0, 
+                                                     facecolor=(0, 0.5, 1, 0.2), edgecolor=(0, 0.5, 1, 0.9), linewidth=1)
+        self.reward_plot_p = self.ax2.fill_between(price_x, 0, 
+                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum(),
+                                                   where=self.reward_arr[:self.step_st+self.obs_len].cumsum()>=0,
+                                                   facecolor=(1, 0, 0, 0.2), edgecolor=(1, 0, 0, 0.9), linewidth=1)
+        self.reward_plot_n = self.ax2.fill_between(price_x, 0, 
+                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum(),
+                                                   where=self.reward_arr[:self.step_st+self.obs_len].cumsum()<=0,
+                                                   facecolor=(0, 1, 0, 0.2), edgecolor=(0, 1, 0, 0.9), linewidth=1)
 
         trade_x = self.posi_variation_arr.nonzero()[0]
         trade_x_buy = [i for i in trade_x if self.posi_variation_arr[i]>0]
-        trade_x_sell = [i for i in trade_x if self.posi_variation_arr[i]<0 ]
+        trade_x_sell = [i for i in trade_x if self.posi_variation_arr[i]<0]
         trade_y_buy = [self.price[i] for i in trade_x_buy]
         trade_y_sell =  [self.price[i] for i in trade_x_sell]
         trade_color_buy = [self._gen_trade_color(i) for i in trade_x_buy] 
         trade_color_sell = [self._gen_trade_color(i) for i in trade_x_sell]
-        self.trade_plot = self.ax.scatter(x=trade_x_buy, y=trade_y_buy, s=100, marker='^', 
-                                            c=trade_color_buy, edgecolors='none', zorder=2)
-        self.trade_plot = self.ax.scatter(x=trade_x_sell, y=trade_y_sell, s=100, marker='v', 
-                                            c=trade_color_sell, edgecolors='none', zorder=2)
+        self.trade_plot_buy = self.ax.scatter(x=trade_x_buy, y=trade_y_buy, s=100, marker='^', 
+                                              c=trade_color_buy, edgecolors=(1,0,0,0.9), zorder=2)
+        self.trade_plot_sell = self.ax.scatter(x=trade_x_sell, y=trade_y_sell, s=100, marker='v', 
+                                               c=trade_color_sell, edgecolors=(0,1,0,0.9), zorder=2)
 
 
     def render(self, save=False):
@@ -284,6 +306,10 @@ class trading_env(trading_env_base):
             self.ax = self.fig.add_axes(rect1)  # left, bottom, width, height
             self.ax2 = self.fig.add_axes(rect2, sharex=self.ax)
             self.ax3 = self.fig.add_axes(rect3, sharex=self.ax)
+            self.ax.grid(color='gray', linestyle='-', linewidth=0.5)
+            self.ax2.grid(color='gray', linestyle='-', linewidth=0.5)
+            self.ax3.grid(color='gray', linestyle='-', linewidth=0.5)
+            self.features_color = [c.rgb+(0.9,) for c in Color('yellow').range_to(Color('cyan'), self.feature_len)]
             #fig, ax = plt.subplots()
             self._plot_trading()
 
@@ -296,18 +322,22 @@ class trading_env(trading_env_base):
 
         elif self.render_on == 1:
             self.ax.lines.remove(self.price_plot[0])
-            self.ax3.lines.remove(self.feature1_plot[0])
-            self.fluc_reward_plot.remove()
+            [self.ax3.lines.remove(plot) for plot in self.features_plot]
+            self.fluc_reward_plot_p.remove()
+            self.fluc_reward_plot_n.remove()
             self.target_box.remove()
-            self.reward_plot.remove()
-            self.posi_plot.remove()
-            self.trade_plot.remove()
+            self.reward_plot_p.remove()
+            self.reward_plot_n.remove()
+            self.posi_plot_long.remove()
+            self.posi_plot_short.remove()
+            self.trade_plot_buy.remove()
+            self.trade_plot_sell.remove()
 
             self._plot_trading()
 
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
-            plt.pause(0.3)
+            plt.pause(0.0001)
     
     
