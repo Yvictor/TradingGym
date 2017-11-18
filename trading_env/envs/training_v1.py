@@ -15,6 +15,7 @@ class trading_env(trading_env_base):
     def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
+                 return_transaction=True,
                  fluc_div=100.0, gameover_limit=5,
                  *args, **kwargs):
         """
@@ -55,6 +56,7 @@ class trading_env(trading_env_base):
         
         self.fluc_div = fluc_div
         self.gameover = gameover_limit
+        self.return_transaction = return_transaction
         
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
@@ -108,8 +110,21 @@ class trading_env(trading_env_base):
         self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
         
+        if self.return_transaction:
+            self.obs_return = np.concatenate((self.obs_state, 
+                                            self.obs_posi[:, np.newaxis], 
+                                            self.obs_posi_var[:, np.newaxis],
+                                            self.obs_posi_entry_cover[:, np.newaxis],
+                                            self.obs_price[:, np.newaxis],
+                                            self.obs_price_mean[:, np.newaxis],
+                                            self.obs_reward_fluctuant[:, np.newaxis],
+                                            self.obs_makereal[:, np.newaxis],
+                                            self.obs_reward[:, np.newaxis]), axis=1)
+        else:
+            self.obs_return = self.obs_state
+
         self.t_index = 0
-        return self.obs_state
+        return self.obs_return
     
 
     def _long(self, open_posi, enter_price, current_mkt_position, current_price_mean):
@@ -228,7 +243,20 @@ class trading_env(trading_env_base):
 
         self.chg_reward_fluctuant[:] = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
-        return self.obs_state, self.obs_reward.sum(), done, None
+        if self.return_transaction:
+            self.obs_return = np.concatenate((self.obs_state, 
+                                            self.obs_posi[:, np.newaxis], 
+                                            self.obs_posi_var[:, np.newaxis],
+                                            self.obs_posi_entry_cover[:, np.newaxis],
+                                            self.obs_price[:, np.newaxis],
+                                            self.obs_price_mean[:, np.newaxis],
+                                            self.obs_reward_fluctuant[:, np.newaxis],
+                                            self.obs_makereal[:, np.newaxis],
+                                            self.obs_reward[:, np.newaxis]), axis=1)
+        else:
+            self.obs_return = self.obs_state
+
+        return self.obs_return, self.obs_reward.sum(), done, None
 
     def _gen_trade_color(self, ind, long_entry=(1, 0, 0, 0.5), long_cover=(1, 1, 1, 0.5), 
                          short_entry=(0, 1, 0, 0.5), short_cover=(1, 1, 1, 0.5)): 

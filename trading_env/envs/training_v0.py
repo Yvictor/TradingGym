@@ -1,7 +1,9 @@
-import pandas as pd
-import numpy as np
 import os
 import logging
+
+import pandas as pd
+import numpy as np
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -434,7 +436,7 @@ class trading_env:
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
-            plt.pause(0.3)
+            plt.pause(0.0001)
     
     
     def backtest(self):
