@@ -97,6 +97,7 @@ class trading_env(trading_env_base):
         self.reward_makereal_arr = self.posi_arr.copy()
         self.reward_arr = self.reward_fluctuant_arr*self.reward_makereal_arr
 
+        self.info = None
         self.transaction_details = pd.DataFrame()
         
         # observation part
@@ -215,6 +216,19 @@ class trading_env(trading_env_base):
                 self.chg_posi_entry_cover[:1] = -2
                 self.chg_makereal[:1] = 1
                 self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
+            self.transaction_details = pd.DataFrame([self.posi_arr,
+                                                     self.posi_variation_arr,
+                                                     self.posi_entry_cover_arr,
+                                                     self.price_mean_arr,
+                                                     self.reward_fluctuant_arr,
+                                                     self.reward_makereal_arr,
+                                                     self.reward_arr], 
+                                                     index=['position', 'position_variation', 'entry_cover',
+                                                            'price_mean', 'reward_fluctuant', 'reward_makereal',
+                                                            'reward'], 
+                                                     columns=self.df_sample.index).T
+            self.info = self.df_sample.join(self.transaction_details)
+
             
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
         enter_price = self.chg_price[0]
@@ -256,7 +270,7 @@ class trading_env(trading_env_base):
         else:
             self.obs_return = self.obs_state
 
-        return self.obs_return, self.obs_reward.sum(), done, None
+        return self.obs_return, self.obs_reward.sum(), done, self.info
 
     def _gen_trade_color(self, ind, long_entry=(1, 0, 0, 0.5), long_cover=(1, 1, 1, 0.5), 
                          short_entry=(0, 1, 0, 0.5), short_cover=(1, 1, 1, 0.5)): 
