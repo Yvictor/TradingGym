@@ -22,13 +22,12 @@ import trading_env
 
 df = pd.read_hdf('dataset/SGXTW.h5', 'STW')
 
-env = trading_env.make(obs_data_len=256, step_len=128,
-                      df=df, fee=0.1, max_position=5, deal_col_name='Price', 
-                      feature_names=['Price', 'Volume', 
-                                     'Ask_price','Bid_price', 
-                                     'Ask_deal_vol','Bid_deal_vol',
-                                     'Bid/Ask_deal', 'Updown'], 
-                      fluc_div=100.0)
+env = trading_env.make(env_id='training_v1', obs_data_len=256, step_len=128,
+                       df=df, fee=0.1, max_position=5, deal_col_name='Price', 
+                       feature_names=['Price', 'Volume', 
+                                      'Ask_price','Bid_price', 
+                                      'Ask_deal_vol','Bid_deal_vol',
+                                      'Bid/Ask_deal', 'Updown'])
 
 env.reset()
 env.render()
@@ -81,13 +80,12 @@ env.transaction_details
 
  - loading env just like training
 ``` python
-env = trading_env.make(obs_data_len=1024, step_len=512,
-                      df=df, fee=0.1, max_position=5, deal_col_name='Price', 
-                      feature_names=['Price', 'Volume', 
-                                     'Ask_price','Bid_price', 
-                                     'Ask_deal_vol','Bid_deal_vol',
-                                     'Bid/Ask_deal', 'Updown'], 
-                      fluc_div=100.0)
+env = trading_env.make(env_id='backtest_v1', obs_data_len=1024, step_len=512,
+                       df=df, fee=0.1, max_position=5, deal_col_name='Price', 
+                        feature_names=['Price', 'Volume', 
+                                       'Ask_price','Bid_price', 
+                                       'Ask_deal_vol','Bid_deal_vol',
+                                       'Bid/Ask_deal', 'Updown'])
 ```
 - load your own agent
 
@@ -108,17 +106,19 @@ class YourAgent:
 ``` python
 agent = YourAgent()
 
-state = env.backtest()
-done = False
-
-while not done:
-    state, reward, done, info = env.step(agent.choice_action(state))
-    #print(state, reward)
-    #env.render()
-    if done:
-        break
-        
-env.transaction_details
+transactions = []
+while not env.backtest_done:
+    state = env.backtest()
+    done = False
+    while not done:
+        state, reward, done, info = env.step(agent.choice_action(state))
+        #print(state, reward)
+        #env.render()
+        if done:
+            transactions.append(info)
+            break
+transaction = pd.concate(transactions)
+transaction
 ```
 
 <div>
@@ -313,10 +313,9 @@ env.transaction_details
 - ma crossover and crossunder
 
 ``` python
-env = trading_env.make(obs_data_len=10, step_len=1,
-                      df=df, fee=0.1, max_position=5, deal_col_name='Price', 
-                      feature_names=['Price', 'MA'], 
-                      fluc_div=100.0)
+env = trading_env.make(env_id='backtest_v1', obs_data_len=10, step_len=1,
+                       df=df, fee=0.1, max_position=5, deal_col_name='Price', 
+                       feature_names=['Price', 'MA'])
 class MaAgent:
     def __init__(self):
         pass

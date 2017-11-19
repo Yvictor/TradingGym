@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from colour import Color
 
+
 class trading_env:
     def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
@@ -59,24 +60,32 @@ class trading_env:
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
         
+        self.date_record = 0
+        self.backtest_done = False
+
         self.render_on = 0
         self.buy_color, self.sell_color = (1, 2)
         self.new_rotation, self.cover_rotation = (1, 2)
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
     
-    def _random_choice_section(self):
-        random_int = np.random.randint(self.date_leng)
-        if random_int == self.date_leng - 1:
-            begin_point = self.begin_fs.index[random_int]
+    def _choice_section(self):
+        assert self.date_record < self.date_leng, 'Backtest Done.'
+        section_int = self.date_record
+        if section_int == self.date_leng - 1:
+            begin_point = self.begin_fs.index[section_int]
             end_point = None
         else:
-            begin_point, end_point = self.begin_fs.index[random_int: random_int+2]
+            begin_point, end_point = self.begin_fs.index[section_int: section_int+2]
         df_section = self.df.iloc[begin_point: end_point]
+        self.date_record += 1
+        if self.date_record >= self.date_leng:
+            self.backtest_done = True 
         return df_section
 
     def reset(self):
-        self.df_sample = self._random_choice_section()
+        self.render_on = 0
+        self.df_sample = self._choice_section()
         self.step_st = 0
         # define the price to calculate the reward
         self.price = self.df_sample[self.price_name].as_matrix()
@@ -379,5 +388,3 @@ class trading_env:
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
             plt.pause(0.0001)
-    
-    
