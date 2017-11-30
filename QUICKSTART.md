@@ -8,10 +8,10 @@
 
 - ### the require columns of env 
   - ### strike price (the price deal in each tick)</br>
-    use for calculate the reward and render but will not directly use in model as input, because the input may need the preprocessing. This can show human readable result like transaction, ploting and so on.
+    use for calculate the reward and render but will not directly use in model as input, because the input may need the preprocessing. This can show human readable result like transaction, ploting and so on.
   - ### serial number of each date</br> 
     currently v0 and v1 training env use each day as new game for training like the deepmind play the game, it will randomly choice one day to trade using serial number equal to zero to separate that.
-  - ### at least one feature data</br>
+  - ### at least one feature data</br>
     the feature data will be the state to return, it can simple like price, volumn, etc.
 
 ## Introduce the training environment operation
@@ -41,7 +41,7 @@ while not done:
 ![env_agent_loop](fig/env_agent_loop-01.png)
 
 #### trading gym usage
-unlike openai gym only choice env_id, with lot of other parameter can control the env with custom data. explain each parameter it on below.
+unlike openai gym only choice env_id, with lot of other parameter can control the env with custom data. explain each parameter it on below.
 
 ``` python
 import pandas as pd
@@ -62,7 +62,7 @@ state = env.reset()
 ![trading_gym_state](fig/state-01.png)
 - env_id: use `trading_env.available_envs()` to see current implement env
 - obs_data_len: see above image, data windows length of the return state
-- step_len: when call step function in env will roll the windows keep the obs_data_len but slide step_len
+- step_len: when call step function in env will roll the windows keep the obs_data_len but slide step_len
 - df: as above prepare data part, just input the whole data and check the requirement
 - fee: the cost of each transaction.
 - max_position: the max market position for your trading share.
@@ -105,7 +105,7 @@ pseudocode in dqn paper
 - [One-Setp Q leaning, N-Step Q learing](https://arxiv.org/pdf/1602.01783.pdf)
 - [Actor-Critic, A3C](https://arxiv.org/pdf/1602.01783v2.pdf)
 - [Neural Episodic Control](https://arxiv.org/pdf/1703.01988.pdf)</br>
-nec pseudocode (very similar to dqn but agent learns significantly faster)
+nec pseudocode (very similar to dqn but agent learns significantly faster)
 ![nec](fig/NEC_pseudocode.png) 
 
 ### [My deep reinforcement learning slides in chinese](https://yvictor.github.io/slides/DQN.slides.html?transition=convex#/)
