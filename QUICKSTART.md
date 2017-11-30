@@ -90,7 +90,8 @@ while not done:
 
 ## How to make the RL agent and train it
 [dqn to play pong](https://github.com/Yvictor/deep-rl/blob/master/dqn_with_log_summary_nn_saver.ipynb)
-- Can just use the above example to create the dqn agent to train but need to modify the convolutional neural network architecture
+- Can just use the above example to create the dqn agent to train but need to modify the convolutional neural network architecture</br>
+
 ![normal con layer](fig/cnn_conv.gif)
 - above is normal conv layer,the left small cube is kernel and it's kernel size is (3, 3), and the stride is 1, origin input is (7, 7), so the output of the layer is (5,5), see more about [conv net cs231n](http://cs231n.github.io/convolutional-networks/)
 - in the my env, if you want to use conv layer, the kernel size can be (1, x) or (feature_number, x) but second kernel size need to change next conv layer kernel size to (1, x)
