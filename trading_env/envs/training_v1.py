@@ -330,7 +330,7 @@ class trading_env:
                                                c=trade_color_sell, edgecolors=(0,1,0,0.9), zorder=2)
 
 
-    def render(self, save=False):
+    def render(self, save=False, show=True):
         if self.render_on == 0:
             matplotlib.style.use('dark_background')
             self.render_on = 1
@@ -354,9 +354,10 @@ class trading_env:
             self._plot_trading()
 
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
-            plt.ion()
-            #self.fig.tight_layout()
-            plt.show()
+            if show:
+                plt.ion()
+                #self.fig.tight_layout()
+                plt.show()
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
 
@@ -378,6 +379,7 @@ class trading_env:
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if save:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
-            plt.pause(0.0001)
+            if show:
+                plt.pause(0.0001)
     
     
