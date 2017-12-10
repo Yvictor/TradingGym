@@ -13,8 +13,8 @@ class trading_env:
     def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
-                 return_transaction=True,
-                 fluc_div=100.0, gameover_limit=5,
+                 return_transaction=False,
+                 #fluc_div=100.0, gameover_limit=5,
                  *args, **kwargs):
         """
         #assert df 
@@ -52,16 +52,14 @@ class trading_env:
         self.fee = fee
         self.max_position = max_position
         
-        self.fluc_div = fluc_div
-        self.gameover = gameover_limit
+        #self.gameover = gameover_limit
         self.return_transaction = return_transaction
         
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
         
         self.render_on = 0
-        self.buy_color, self.sell_color = (1, 2)
-        self.new_rotation, self.cover_rotation = (1, 2)
+                                                                                        
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
     
@@ -109,16 +107,43 @@ class trading_env:
         self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
         
+        self.transaction_dict = {'mkt_pos': self.obs_posi[:, np.newaxis],
+                                'mkt_pos_var': self.obs_posi_var[:, np.newaxis],
+                                'entry_cover': self.obs_posi_entry_cover[:, np.newaxis],
+                                'avg_hold_price': self.obs_price_mean[:, np.newaxis],
+                                'fluc_reward': self.obs_reward_fluctuant[:, np.newaxis],
+                                'make_real': self.obs_makereal[:, np.newaxis],
+                                'reward': self.obs_reward[:, np.newaxis],}
+        self.transaction_all_dict = {'mkt_pos': self.posi_arr,
+                                    'mkt_pos_var': self.posi_variation_arr,
+                                    'entry_cover': self.posi_entry_cover_arr,
+                                    'avg_hold_price': self.price_mean_arr,
+                                    'fluc_reward': self.reward_fluctuant_arr,
+                                    'make_real': self.reward_makereal_arr,
+                                    'reward': self.reward_arr,}           
+                                                     
         if self.return_transaction:
-            self.obs_return = np.concatenate((self.obs_state, 
-                                            self.obs_posi[:, np.newaxis], 
-                                            self.obs_posi_var[:, np.newaxis],
-                                            self.obs_posi_entry_cover[:, np.newaxis],
-                                            self.obs_price[:, np.newaxis],
-                                            self.obs_price_mean[:, np.newaxis],
-                                            self.obs_reward_fluctuant[:, np.newaxis],
-                                            self.obs_makereal[:, np.newaxis],
-                                            self.obs_reward[:, np.newaxis]), axis=1)
+            if isinstance(self.return_transaction, bool):
+                self.obs_return = np.concatenate((self.obs_state, 
+                                                self.obs_posi[:, np.newaxis], 
+                                                self.obs_posi_var[:, np.newaxis],
+                                                self.obs_posi_entry_cover[:, np.newaxis],
+                                                self.obs_price_mean[:, np.newaxis],
+                                                self.obs_reward_fluctuant[:, np.newaxis],
+                                                self.obs_makereal[:, np.newaxis],
+                                                self.obs_reward[:, np.newaxis]), axis=1)
+            elif isinstance(self.return_transaction, list):
+                self.obs_return = np.concatenate((self.obs_state,)+ \
+                                                 tuple(self.transaction_dict[need] \
+                                                 for need in self.return_transaction), 
+                                                 axis=1)
+            elif isinstance(self.return_transaction, dict):
+                self.obs_return = np.concatenate((self.obs_state,)+ \
+                                                tuple(self.return_transaction[need](self.transaction_dict[need]) \
+                                                for need in self.return_transaction), 
+                                                axis=1)
+            else:
+                self.obs_return = self.obs_state    
         else:
             self.obs_return = self.obs_state
 
@@ -214,6 +239,10 @@ class trading_env:
                 self.chg_posi_entry_cover[:1] = -2
                 self.chg_makereal[:1] = 1
                 self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
+            
+            transaction_details_index = ['position', 'position_variation', 'entry_cover',
+                                         'price_mean', 'reward_fluctuant', 'reward_makereal',
+                                         'reward']                
             self.transaction_details = pd.DataFrame([self.posi_arr,
                                                      self.posi_variation_arr,
                                                      self.posi_entry_cover_arr,
@@ -221,9 +250,7 @@ class trading_env:
                                                      self.reward_fluctuant_arr,
                                                      self.reward_makereal_arr,
                                                      self.reward_arr], 
-                                                     index=['position', 'position_variation', 'entry_cover',
-                                                            'price_mean', 'reward_fluctuant', 'reward_makereal',
-                                                            'reward'], 
+                                                     index=transaction_details_index, 
                                                      columns=self.df_sample.index).T
             self.info = self.df_sample.join(self.transaction_details)
 
@@ -256,15 +283,27 @@ class trading_env:
         self.chg_reward_fluctuant[:] = (self.chg_price - self.chg_price_mean)*self.chg_posi - np.abs(self.chg_posi)*self.fee
 
         if self.return_transaction:
-            self.obs_return = np.concatenate((self.obs_state, 
-                                            self.obs_posi[:, np.newaxis], 
-                                            self.obs_posi_var[:, np.newaxis],
-                                            self.obs_posi_entry_cover[:, np.newaxis],
-                                            self.obs_price[:, np.newaxis],
-                                            self.obs_price_mean[:, np.newaxis],
-                                            self.obs_reward_fluctuant[:, np.newaxis],
-                                            self.obs_makereal[:, np.newaxis],
-                                            self.obs_reward[:, np.newaxis]), axis=1)
+            if isinstance(self.return_transaction, bool):
+                self.obs_return = np.concatenate((self.obs_state, 
+                                                self.obs_posi[:, np.newaxis], 
+                                                self.obs_posi_var[:, np.newaxis],
+                                                self.obs_posi_entry_cover[:, np.newaxis],
+                                                self.obs_price_mean[:, np.newaxis],
+                                                self.obs_reward_fluctuant[:, np.newaxis],
+                                                self.obs_makereal[:, np.newaxis],
+                                                self.obs_reward[:, np.newaxis]), axis=1)
+            elif isinstance(self.return_transaction, list):
+                self.obs_return = np.concatenate((self.obs_state,)+ \
+                                                 tuple(self.transaction_dict[need] \
+                                                 for need in self.return_transaction), 
+                                                 axis=1)
+            elif isinstance(self.return_transaction, dict):
+                self.obs_return = np.concatenate((self.obs_state,)+ \
+                                                tuple(self.return_transaction[need](self.transaction_dict[need]) \
+                                                for need in self.return_transaction), 
+                                                axis=1)
+            else:
+                self.obs_return = self.obs_state   
         else:
             self.obs_return = self.obs_state
 
