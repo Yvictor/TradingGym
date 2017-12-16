@@ -42,9 +42,18 @@ class trading_env:
         self.action_describe = {0:'do nothing',
                                 1:'long',
                                 2:'short'}
-        
+
+
+        if isinstance(return_transaction, bool) and return_transaction:
+            transaction_num = 7
+        elif not return_transaction:
+            transaction_num = 0
+        else:
+            transaction_num = len(return_transaction)    
+    
         self.obs_len = obs_data_len
         self.feature_len = len(feature_names)
+        self.return_state_len = len(feature_names) + transaction_num
         self.observation_space = np.array([self.obs_len*self.feature_len,])
         self.using_feature = feature_names
         self.price_name = deal_col_name
