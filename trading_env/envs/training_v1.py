@@ -207,7 +207,7 @@ class trading_env:
         self.chg_posi[:] = current_mkt_position
         self.chg_price_mean[:] = current_price_mean
 
-    def step(self, action):
+    def step(self, action, custom_done=False):
         current_index = self.step_st + self.obs_len -1
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
@@ -237,7 +237,7 @@ class trading_env:
         self.chg_reward = self.obs_reward[-self.step_len:]
 
         done = False
-        if self.step_st+self.obs_len+self.step_len >= len(self.price):
+        if self.step_st+self.obs_len+self.step_len >= len(self.price) or custom_done:
             done = True
             action = -1
             if current_mkt_position != 0:
