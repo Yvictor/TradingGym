@@ -10,7 +10,7 @@ This training env originally design for tickdata, but also support for ohlc data
 ```
 git clone https://github.com/Yvictor/TradingGym.git
 cd TradingGym
-python steup.py install
+python setup.py install
 ```
 
 ### Getting Started
