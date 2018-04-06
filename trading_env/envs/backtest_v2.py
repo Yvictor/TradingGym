@@ -15,7 +15,7 @@ class trading_env:
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
                  return_transaction=False,
-                 fluc_div=100.0, gameover_limit=5,
+                 action_first=False,
                  *args, **kwargs):
         """
         #assert df 
@@ -41,7 +41,8 @@ class trading_env:
         self.action_space = 3
         self.action_describe = {0:'do nothing',
                                 1:'long',
-                                2:'short'}
+                                2:'short',
+                                3:'cover'}
 
 
         if isinstance(return_transaction, bool) and return_transaction:
@@ -61,10 +62,9 @@ class trading_env:
         self.step_len = step_len
         self.fee = fee
         self.max_position = max_position
-        
-        self.fluc_div = fluc_div
-        self.gameover = gameover_limit
+
         self.return_transaction = return_transaction
+        self.action_first = action_first
         
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
@@ -169,12 +169,23 @@ class trading_env:
             self.chg_posi_var[:1] = 1
             self.chg_posi_entry_cover[:1] = 1
         else:
-            after_act_mkt_position = current_mkt_position + 1
-            self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
-                                        enter_price)/after_act_mkt_position
-            self.chg_posi[:] = after_act_mkt_position
-            self.chg_posi_var[:1] = 1
-            self.chg_posi_entry_cover[:1] = 2
+            if current_mkt_position > 0:
+                after_act_mkt_position = current_mkt_position + 1
+                self.chg_price_mean[:] = (current_price_mean*current_mkt_position + \
+                                            enter_price)/after_act_mkt_position
+                self.chg_posi[:] = after_act_mkt_position
+                self.chg_posi_var[:1] = 1
+                self.chg_posi_entry_cover[:1] = 2
+            else:
+                # make real short order
+                self.chg_makereal[:1] = 1
+                self.chg_reward[:] = ((self.chg_price - current_price_mean)*(current_mkt_position) - self.fee*abs(current_mkt_position))*self.chg_makereal
+                # make new long order
+                self.chg_price_mean[:] = enter_price
+                self.chg_posi[:] = 1
+                self.chg_posi_var[:1] = -current_mkt_position + 1
+                self.chg_posi_entry_cover[:1] = 3
+
             
     def _short(self, open_posi, enter_price, current_mkt_position, current_price_mean):
         if open_posi:
@@ -183,12 +194,22 @@ class trading_env:
             self.chg_posi_var[:1] = -1
             self.chg_posi_entry_cover[:1] = 1
         else:
-            after_act_mkt_position = current_mkt_position - 1
-            self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
-                                      enter_price)/abs(after_act_mkt_position)
-            self.chg_posi[:] = after_act_mkt_position
-            self.chg_posi_var[:1] = -1
-            self.chg_posi_entry_cover[:1] = 2
+            if current_mkt_position < 0:
+                after_act_mkt_position = current_mkt_position - 1
+                self.chg_price_mean[:] = (current_price_mean*abs(current_mkt_position) + \
+                                        enter_price)/abs(after_act_mkt_position)
+                self.chg_posi[:] = after_act_mkt_position
+                self.chg_posi_var[:1] = -1
+                self.chg_posi_entry_cover[:1] = 2
+            else:
+                # make real short order
+                self.chg_makereal[:1] = 1
+                self.chg_reward[:] = ((self.chg_price - current_price_mean)*(current_mkt_position) - self.fee*abs(current_mkt_position))*self.chg_makereal
+                # make new long order
+                self.chg_price_mean[:] = enter_price
+                self.chg_posi[:] = -1
+                self.chg_posi_var[:1] = -current_mkt_position - 1
+                self.chg_posi_entry_cover[:1] = 3
           
     def _short_cover(self, current_price_mean, current_mkt_position):
         self.chg_price_mean[:] = current_price_mean
@@ -211,12 +232,13 @@ class trading_env:
         self.chg_price_mean[:] = current_price_mean
 
     def step(self, action, custom_done=False):
-        current_index = self.step_st + self.obs_len -1
+        current_index = self.step_st + self.obs_len - (1 + self.action_first)
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
 
-        self.t_index += 1
-        self.step_st += self.step_len
+        if not self.action_first:
+            self.t_index += 1
+            self.step_st += self.step_len
         # observation part
         self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
         self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
@@ -266,24 +288,23 @@ class trading_env:
             
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
         enter_price = self.chg_price[0]
-        if action == 1 and self.max_position > current_mkt_position >= 0:
+        if action == 1 and self.max_position > current_mkt_position:
             open_posi = (current_mkt_position == 0)
             self._long(open_posi, enter_price, current_mkt_position, current_price_mean)
         
-        elif action == 2 and -self.max_position < current_mkt_position <= 0:
+        elif action == 2 and -self.max_position < current_mkt_position:
             open_posi = (current_mkt_position == 0)
             self._short(open_posi, enter_price, current_mkt_position, current_price_mean)
-        
-        elif action == 1 and current_mkt_position<0:
-            self._short_cover(current_price_mean, current_mkt_position)
-
-        elif action == 2 and current_mkt_position>0:
-            self._long_cover(current_price_mean, current_mkt_position)
 
         elif action == 1 and current_mkt_position==self.max_position:
             action = 0
         elif action == 2 and current_mkt_position==-self.max_position:
             action = 0
+        
+        elif action == 3 and current_mkt_position<0:
+            self._short_cover(current_price_mean, current_mkt_position)
+        elif action == 3 and current_mkt_position>0:
+            self._long_cover(current_price_mean, current_mkt_position)
         
         if action == 0:
             if current_mkt_position != 0:
@@ -320,6 +341,10 @@ class trading_env:
                                                 axis=1)
         else:
             self.obs_return = self.obs_state
+        
+        if self.action_first:
+            self.t_index += 1
+            self.step_st += self.step_len
 
         return self.obs_return, self.obs_reward.sum(), done, self.info
 
@@ -334,7 +359,7 @@ class trading_env:
         elif self.posi_variation_arr[ind]<0 and self.posi_entry_cover_arr[ind]<0:
             return short_cover 
     
-    def _plot_trading(self):
+    def _plot_trading(self, reward_divinplot):
         price_x = list(range(len(self.price[:self.step_st+self.obs_len])))
         self.price_plot = self.ax.plot(price_x, self.price[:self.step_st+self.obs_len], c=(0, 0.68, 0.95, 0.9),zorder=1)
         # maybe seperate up down color
@@ -349,10 +374,10 @@ class trading_env:
                             linestyle='-',linewidth=1.5,
                             fill=True)
                             )     # remove background)
-        self.fluc_reward_plot_p = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len],
+        self.fluc_reward_plot_p = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len]/reward_divinplot,
                                                         where=self.reward_fluctuant_arr[:self.step_st+self.obs_len]>=0, 
                                                         facecolor=(1, 0.8, 0, 0.2), edgecolor=(1, 0.8, 0, 0.9), linewidth=0.8)
-        self.fluc_reward_plot_n = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len],
+        self.fluc_reward_plot_n = self.ax2.fill_between(price_x, 0, self.reward_fluctuant_arr[:self.step_st+self.obs_len]/reward_divinplot,
                                                         where=self.reward_fluctuant_arr[:self.step_st+self.obs_len]<=0, 
                                                         facecolor=(0, 1, 0.8, 0.2), edgecolor=(0, 1, 0.8, 0.9), linewidth=0.8)
         self.posi_plot_long = self.ax2.fill_between(price_x, 0, self.posi_arr[:self.step_st+self.obs_len], 
@@ -362,11 +387,11 @@ class trading_env:
                                                      where=self.posi_arr[:self.step_st+self.obs_len]<=0, 
                                                      facecolor=(0, 0.5, 1, 0.2), edgecolor=(0, 0.5, 1, 0.9), linewidth=1)
         self.reward_plot_p = self.ax2.fill_between(price_x, 0, 
-                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum(),
+                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum()/reward_divinplot,
                                                    where=self.reward_arr[:self.step_st+self.obs_len].cumsum()>=0,
                                                    facecolor=(1, 0, 0, 0.2), edgecolor=(1, 0, 0, 0.9), linewidth=1)
         self.reward_plot_n = self.ax2.fill_between(price_x, 0, 
-                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum(),
+                                                   self.reward_arr[:self.step_st+self.obs_len].cumsum()/reward_divinplot,
                                                    where=self.reward_arr[:self.step_st+self.obs_len].cumsum()<=0,
                                                    facecolor=(0, 1, 0, 0.2), edgecolor=(0, 1, 0, 0.9), linewidth=1)
 
@@ -383,7 +408,7 @@ class trading_env:
                                                c=trade_color_sell, edgecolors=(0,1,0,0.9), zorder=2)
 
 
-    def render(self, save=False, show=True):
+    def render(self, save=False, show=True, reward_divinplot=1):
         if self.render_on == 0:
             matplotlib.style.use('dark_background')
             self.render_on = 1
@@ -404,7 +429,7 @@ class trading_env:
             self.ax3.grid(color='gray', linestyle='-', linewidth=0.5)
             self.features_color = [c.rgb+(0.9,) for c in Color('yellow').range_to(Color('cyan'), self.feature_len)]
             #fig, ax = plt.subplots()
-            self._plot_trading()
+            self._plot_trading(reward_divinplot)
 
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if show:
@@ -427,7 +452,7 @@ class trading_env:
             self.trade_plot_buy.remove()
             self.trade_plot_sell.remove()
 
-            self._plot_trading()
+            self._plot_trading(reward_divinplot)
 
             self.ax.set_xlim(0,len(self.price[:self.step_st+self.obs_len])+200)
             if save:

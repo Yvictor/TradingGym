@@ -8,12 +8,14 @@ st = datetime.now()
 
 df = pd.read_csv('trading_env/test/data/SGXTWsample.csv', index_col=0, parse_dates=['datetime'])
 
+
 env = trading_env.make(env_id='training_v1', obs_data_len=256, step_len=128,
                        df=df, fee=0.1, max_position=5, deal_col_name='Price', 
                        feature_names=['Price', 'Volume', 
                                       'Ask_price','Bid_price', 
                                       'Ask_deal_vol','Bid_deal_vol',
                                       'Bid/Ask_deal', 'Updown'], 
+                       return_transaction={'mkt_pos': lambda x:x},
                        fluc_div=100.0)
 
 env.reset()
