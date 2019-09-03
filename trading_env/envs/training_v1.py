@@ -229,7 +229,7 @@ class trading_env:
 
             
         # use next tick, maybe choice avg in first 10 tick will be better to real backtest
-        enter_price = self.chg_price[0]
+        enter_price = self.chg_price[-1]
         if action == 1 and self.max_position > current_mkt_position >= 0:
             open_posi = (current_mkt_position == 0)
             self._long(open_posi, enter_price, current_mkt_position, current_price_mean)
