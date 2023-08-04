@@ -79,9 +79,9 @@ class trading_env:
         self.df_sample = self._random_choice_section()
         self.step_st = 0
         # define the price to calculate the reward
-        self.price = self.df_sample[self.price_name].as_matrix()
+        self.price = self.df_sample[self.price_name].to_numpy()
         # define the observation feature
-        self.obs_features = self.df_sample[self.using_feature].as_matrix()
+        self.obs_features = self.df_sample[self.using_feature].to_numpy()
         #maybe make market position feature in final feature, set as option
         self.posi_arr = np.zeros_like(self.price)
         # position variation
