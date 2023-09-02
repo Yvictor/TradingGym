@@ -1,4 +1,3 @@
-
 import os
 import logging
 
@@ -9,13 +8,12 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from colour import Color
 
-
 class trading_env:
     def __init__(self, env_id, obs_data_len, step_len,
                  df, fee, max_position=5, deal_col_name='price', 
                  feature_names=['price', 'volume'], 
                  return_transaction=False,
-                 fluc_div=100.0, gameover_limit=5,
+                 action_first=False,
                  *args, **kwargs):
         """
         #assert df 
@@ -43,14 +41,13 @@ class trading_env:
                                 1:'long',
                                 2:'short'}
 
-
         if isinstance(return_transaction, bool) and return_transaction:
             transaction_num = 7
         elif not return_transaction:
             transaction_num = 0
         else:
-            transaction_num = len(return_transaction)    
-    
+            transaction_num = len(return_transaction)
+        
         self.obs_len = obs_data_len
         self.feature_len = len(feature_names)
         self.return_state_len = len(feature_names) + transaction_num
@@ -62,39 +59,30 @@ class trading_env:
         self.fee = fee
         self.max_position = max_position
         
-        self.fluc_div = fluc_div
-        self.gameover = gameover_limit
+        #self.gameover = gameover_limit
         self.return_transaction = return_transaction
+        self.action_first = action_first
         
         self.begin_fs = self.df[self.df['serial_number']==0]
         self.date_leng = len(self.begin_fs)
         
-        self.date_record = 0
-        self.backtest_done = False
-
         self.render_on = 0
-        self.buy_color, self.sell_color = (1, 2)
-        self.new_rotation, self.cover_rotation = (1, 2)
+                                                                                        
         self.transaction_details = pd.DataFrame()
         self.logger.info('Making new env: {}'.format(env_id))
     
-    def _choice_section(self):
-        assert self.date_record < self.date_leng, 'Backtest Done.'
-        section_int = self.date_record
-        if section_int == self.date_leng - 1:
-            begin_point = self.begin_fs.index[section_int]
+    def _random_choice_section(self):
+        random_int = np.random.randint(self.date_leng)
+        if random_int == self.date_leng - 1:
+            begin_point = self.begin_fs.index[random_int]
             end_point = None
         else:
-            begin_point, end_point = self.begin_fs.index[section_int: section_int+2]
+            begin_point, end_point = self.begin_fs.index[random_int: random_int+2]
         df_section = self.df.iloc[begin_point: end_point]
-        self.date_record += 1
-        if self.date_record >= self.date_leng:
-            self.backtest_done = True 
         return df_section
 
     def reset(self):
-        self.render_on = 0
-        self.df_sample = self._choice_section()
+        self.df_sample = self._random_choice_section()
         self.step_st = 0
         # define the price to calculate the reward
         self.price = self.df_sample[self.price_name].as_matrix()
@@ -126,7 +114,7 @@ class trading_env:
         self.obs_reward_fluctuant = self.reward_fluctuant_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_makereal = self.reward_makereal_arr[self.step_st: self.step_st+self.obs_len]
         self.obs_reward = self.reward_arr[self.step_st: self.step_st+self.obs_len]
-
+        
         self.transaction_dict = {'mkt_pos': self.obs_posi[:, np.newaxis],
                                 'mkt_pos_var': self.obs_posi_var[:, np.newaxis],
                                 'entry_cover': self.obs_posi_entry_cover[:, np.newaxis],
@@ -134,7 +122,14 @@ class trading_env:
                                 'fluc_reward': self.obs_reward_fluctuant[:, np.newaxis],
                                 'make_real': self.obs_makereal[:, np.newaxis],
                                 'reward': self.obs_reward[:, np.newaxis],}
-        
+        self.transaction_all_dict = {'mkt_pos': self.posi_arr,
+                                    'mkt_pos_var': self.posi_variation_arr,
+                                    'entry_cover': self.posi_entry_cover_arr,
+                                    'avg_hold_price': self.price_mean_arr,
+                                    'fluc_reward': self.reward_fluctuant_arr,
+                                    'make_real': self.reward_makereal_arr,
+                                    'reward': self.reward_arr,}           
+                                                     
         if self.return_transaction:
             if isinstance(self.return_transaction, bool):
                 self.obs_return = np.concatenate((self.obs_state, 
@@ -155,6 +150,8 @@ class trading_env:
                                                 tuple(self.return_transaction[need](self.transaction_dict[need]) \
                                                 for need in self.return_transaction), 
                                                 axis=1)
+            else:
+                self.obs_return = self.obs_state    
         else:
             self.obs_return = self.obs_state
 
@@ -211,12 +208,14 @@ class trading_env:
         self.chg_price_mean[:] = current_price_mean
 
     def step(self, action, custom_done=False):
-        current_index = self.step_st + self.obs_len -1
+        current_index = self.step_st + self.obs_len - (1 + self.action_first)
         current_price_mean = self.price_mean_arr[current_index]
         current_mkt_position = self.posi_arr[current_index]
 
-        self.t_index += 1
-        self.step_st += self.step_len
+        if not self.action_first:
+            self.t_index += 1
+            self.step_st += self.step_len
+        
         # observation part
         self.obs_state = self.obs_features[self.step_st: self.step_st+self.obs_len]
         self.obs_posi = self.posi_arr[self.step_st: self.step_st+self.obs_len]
@@ -250,6 +249,10 @@ class trading_env:
                 self.chg_posi_entry_cover[:1] = -2
                 self.chg_makereal[:1] = 1
                 self.chg_reward[:] = ((self.chg_price - self.chg_price_mean)*(current_mkt_position) - abs(current_mkt_position)*self.fee)*self.chg_makereal
+            
+            transaction_details_index = ['position', 'position_variation', 'entry_cover',
+                                         'price_mean', 'reward_fluctuant', 'reward_makereal',
+                                         'reward']                
             self.transaction_details = pd.DataFrame([self.posi_arr,
                                                      self.posi_variation_arr,
                                                      self.posi_entry_cover_arr,
@@ -257,9 +260,7 @@ class trading_env:
                                                      self.reward_fluctuant_arr,
                                                      self.reward_makereal_arr,
                                                      self.reward_arr], 
-                                                     index=['position', 'position_variation', 'entry_cover',
-                                                            'price_mean', 'reward_fluctuant', 'reward_makereal',
-                                                            'reward'], 
+                                                     index=transaction_details_index, 
                                                      columns=self.df_sample.index).T
             self.info = self.df_sample.join(self.transaction_details)
 
@@ -318,8 +319,14 @@ class trading_env:
                                                 tuple(self.return_transaction[need](self.transaction_dict[need]) \
                                                 for need in self.return_transaction), 
                                                 axis=1)
+            else:
+                self.obs_return = self.obs_state   
         else:
             self.obs_return = self.obs_state
+        
+        if self.action_first:
+            self.t_index += 1
+            self.step_st += self.step_len
 
         return self.obs_return, self.obs_reward.sum(), done, self.info
 
@@ -434,3 +441,5 @@ class trading_env:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
             if show:
                 plt.pause(0.0001)
+    
+    
