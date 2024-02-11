@@ -88,9 +88,11 @@ class trading_env:
         self.df_sample = self._choice_section()
         self.step_st = 0
         # define the price to calculate the reward
-        self.price = self.df_sample[self.price_name].as_matrix()
+        self.price = self.df_sample[self.price_name].to_numpy()
+
+        # self.price = self.df_sample[self.price_name].as_matrix()
         # define the observation feature
-        self.obs_features = self.df_sample[self.using_feature].as_matrix()
+        self.obs_features = self.df_sample[self.using_feature].to_numpy()
         #maybe make market position feature in final feature, set as option
         self.posi_arr = np.zeros_like(self.price)
         # position variation
@@ -370,8 +372,9 @@ class trading_env:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
 
         elif self.render_on == 1:
-            self.ax.lines.remove(self.price_plot[0])
-            [self.ax3.lines.remove(plot) for plot in self.features_plot]
+            self.price_plot[0].remove()
+            # self.ax.lines.remove(self.price_plot[0])
+            [plot.remove() for plot in self.features_plot]
             self.fluc_reward_plot_p.remove()
             self.fluc_reward_plot_n.remove()
             self.target_box.remove()

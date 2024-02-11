@@ -361,8 +361,14 @@ class trading_env:
                 self.fig.savefig('fig/%s.png' % str(self.t_index))
 
         elif self.render_on == 1:
-            self.ax.lines.remove(self.price_plot[0])
-            [self.ax3.lines.remove(plot) for plot in self.features_plot]
+            line_to_remove = self.price_plot[0]  # Assuming the line you want to remove is at index 0
+            print(line_to_remove, type(line_to_remove))
+            line_to_remove.remove()
+            # self.ax.lines.remove(line_to_remove)
+
+            # self.ax.lines.remove(self.price_plot[0])
+            # [self.ax3.lines.remove(plot) for plot in self.features_plot]
+            [plot.remove() for plot in self.features_plot]
             self.fluc_reward_plot_p.remove()
             self.fluc_reward_plot_n.remove()
             self.target_box.remove()
